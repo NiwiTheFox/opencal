@@ -1,0 +1,431 @@
+/**
+ * EDC15P DTC Detection and Modification Module
+ *
+ * Handles VAG EDC15P ECU files (typically 512KB)
+ * Supports files with 1, 2, or 3 codeblocks
+ *
+ * DTC Structure (8 bytes per entry):
+ * [2 bytes: status LE] [2 bytes: flags LE] [2 bytes: type+marker] [2 bytes: VAG code LE]
+ *
+ * Disabled state: status=0xFFFF, flags=0x0000, type=0x00
+ * Marker byte is always 0x23
+ *
+ * Examples:
+ *   ENABLED (standard):  30 00 30 00 11 23 66 4C
+ *   ENABLED (inverted):  00 00 FF FF 00 23 66 4C  (status/flags swapped)
+ *   ENABLED (type 0x41): 30 00 30 00 41 23 65 4C
+ *   DISABLED:            FF FF 00 00 00 23 66 4C
+ */
+
+import { VAG_DTC_DATABASE, convertVagToPCode } from './dtc-database';
+import type { DetectedDTC, CodeblockInfo, DTCDetectionResult } from './types';
+import {
+  detectFaultPathDTCs,
+  disableFaultPathDTC,
+  enableFaultPathDTC,
+  hasCompactV41Layout,
+} from './edc15-fault-paths';
+
+// EDC15P Codeblock definitions
+const EDC15P_CODEBLOCKS: CodeblockInfo[] = [
+  { id: 2, startAddress: 0x4C000, endAddress: 0x5BFFF, metadataAddress: 0x50000, isValid: false },
+  { id: 3, startAddress: 0x5C000, endAddress: 0x6BFFF, metadataAddress: 0x60000, isValid: false },
+  { id: 5, startAddress: 0x6C000, endAddress: 0x7BFFF, metadataAddress: 0x70000, isValid: false },
+];
+
+// Invalid metadata markers (codeblock not present)
+const INVALID_METADATA_MARKERS = [0xC3C3, 0xFFFF, 0x0000];
+
+// VAG DTC code range
+const VAG_CODE_MIN = 16471; // P0087 - first common VAG DTC
+const VAG_CODE_MAX = 20000; // Maximum valid VAG DTC code
+
+// Seul marqueur d'entrée : 0x23. Une « méthode secondaire » acceptait aussi
+// 0x42 et 0x58 comme marqueur devant un code VAG connu ; elle fabriquait 10 à
+// 36 fausses entrées par fichier EDC15 classique (dont P0490 / P3061 sur les
+// 1.4 TDI 045906019xx) dans une liste triée de mots 16 bits située avant la
+// vraie table (codes VAG et mots 0x42xx / 0x53xx / 0x58xx dont un octet vaut
+// 0x42 ou 0x58 par hasard). Les couper n'écrivait rien (disable/enable
+// exigent le 0x23) : un interrupteur affiché sans effet. Issue #22.
+// DTC search area offset within codeblock
+const DTC_AREA_START_OFFSET = 0x2800;
+const DTC_AREA_END_OFFSET = 0x8100; // Extended to include DTCs at 0x8016/0x8020
+
+/**
+ * Determine if a DTC entry is enabled based on status, flags, and type byte
+ *
+ * A DTC is considered DISABLED when:
+ * - status=0xFFFF AND flags=0x0000 AND type=0x00
+ *
+ * A DTC is considered ENABLED in these cases:
+ * - Standard: status!=0xFFFF (e.g., 0x0030)
+ * - Inverted: status=0x0000 AND flags=0xFFFF (status/flags swapped)
+ * - Type active: status=0xFFFF but type!=0x00 (e.g., 0x11, 0x41)
+ */
+function isDTCEnabled(status: number, flags: number, typeByte: number): boolean {
+  // Fully disabled: status=0xFFFF, flags=0x0000, type=0x00
+  if (status === 0xffff && flags === 0x0000 && typeByte === 0x00) {
+    return false;
+  }
+
+  // Inverted pattern: status=0x0000, flags=0xFFFF -> this is ENABLED
+  if (status === 0x0000 && flags === 0xffff) {
+    return true;
+  }
+
+  // Type byte active (0x11, 0x41, etc.) means monitoring is enabled
+  // even if status is 0xFFFF
+  if (typeByte !== 0x00 && typeByte !== 0x23) {
+    return true;
+  }
+
+  // Standard case: status != 0xFFFF means enabled
+  return status !== 0xffff;
+}
+
+/**
+ * Detect which codeblocks are present in an EDC15P file
+ */
+function detectCodeblocks(data: Uint8Array): CodeblockInfo[] {
+  const codeblocks: CodeblockInfo[] = [];
+
+  for (const cb of EDC15P_CODEBLOCKS) {
+    if (data.length < cb.metadataAddress + 2) {
+      continue;
+    }
+
+    const metadataValue = (data[cb.metadataAddress + 1] << 8) | data[cb.metadataAddress];
+    const isValid = !INVALID_METADATA_MARKERS.includes(metadataValue);
+
+    codeblocks.push({
+      ...cb,
+      isValid,
+    });
+  }
+
+  return codeblocks;
+}
+
+/**
+ * Scan a codeblock for DTCs
+ */
+function scanCodeblockForDTCs(data: Uint8Array, codeblock: CodeblockInfo): DetectedDTC[] {
+  const dtcs: DetectedDTC[] = [];
+  const seen = new Set<number>();
+
+  const searchStart = codeblock.startAddress + DTC_AREA_START_OFFSET;
+  const searchEnd = Math.min(
+    codeblock.startAddress + DTC_AREA_END_OFFSET,
+    codeblock.endAddress,
+    data.length - 8
+  );
+
+  if (searchStart >= data.length || searchEnd <= searchStart) {
+    return dtcs;
+  }
+
+  // Primary method: Look for marker 0x23 followed by VAG code
+  for (let i = searchStart; i < searchEnd - 1; i++) {
+    if (data[i] === 0x23 && i >= 5) {
+      const vagCode = data[i + 1] | (data[i + 2] << 8);
+
+      if (vagCode >= VAG_CODE_MIN && vagCode <= VAG_CODE_MAX && !seen.has(vagCode)) {
+        const dtcInfo = VAG_DTC_DATABASE[vagCode];
+
+        if (dtcInfo) {
+          seen.add(vagCode);
+
+          // Read status, flags, and type byte
+          // Structure: [status 2B] [flags 2B] [type 1B] [marker 0x23] [VAG code 2B]
+          const status = data[i - 5] | (data[i - 4] << 8);
+          const flags = data[i - 3] | (data[i - 2] << 8);
+          const typeByte = data[i - 1];
+          const enabled = isDTCEnabled(status, flags, typeByte);
+
+          dtcs.push({
+            code: dtcInfo.code,
+            vagCode,
+            address: i + 1,
+            codeblockId: codeblock.id,
+            enabled,
+            description: dtcInfo.description,
+            system: dtcInfo.system,
+          });
+        }
+      }
+    }
+  }
+
+  return dtcs;
+}
+
+const V41_SIGNATURE = [0x67, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x56, 0x34, 0x2e, 0x31];
+
+function hasV41SignatureAt(data: Uint8Array, pos: number): boolean {
+  if (pos + V41_SIGNATURE.length > data.length) return false;
+  for (let i = 0; i < V41_SIGNATURE.length; i++) {
+    if (data[pos + i] !== V41_SIGNATURE[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Disposition classique : signature V4.1 un octet après un bloc de code à
+ * 0x50000 / 0x60000 / 0x70000 (codeblocks 2 / 3 / 5 de 64 Ko).
+ */
+function hasStandardV41Layout(data: Uint8Array): boolean {
+  const standard = [0x50001, 0x60001, 0x70001].some((pos) => hasV41SignatureAt(data, pos));
+  const compact = [0x58001, 0x64001].some((pos) => hasV41SignatureAt(data, pos));
+  return standard && !compact;
+}
+
+/** Classic scan of the 8-byte entries (marker 0x23) over the valid codeblocks. */
+function scanClassicTable(data: Uint8Array): { codeblocks: CodeblockInfo[]; dtcs: DetectedDTC[] } {
+  const codeblocks = detectCodeblocks(data);
+  const allDTCs: DetectedDTC[] = [];
+  const seenCodes = new Set<string>();
+  for (const codeblock of codeblocks.filter((cb) => cb.isValid)) {
+    for (const dtc of scanCodeblockForDTCs(data, codeblock)) {
+      if (!seenCodes.has(dtc.code)) {
+        seenCodes.add(dtc.code);
+        allDTCs.push(dtc);
+      }
+    }
+  }
+  allDTCs.sort((a, b) => a.code.localeCompare(b.code));
+  return { codeblocks, dtcs: allDTCs };
+}
+
+// Below this many codes the classic scan only picked stray bytes: the file
+// uses the fault path records (038906012AP, a6 352222: V4.1 at 0x70001 only,
+// the same position as the classic layout, but no 0x23 entries at all).
+const CLASSIC_MIN_CODES = 20;
+
+/**
+ * True when the file stores its DTCs as fault path records: the compact
+ * signatures, or a classic-looking file whose 0x23 table is empty while the
+ * fault path records are there.
+ */
+export function usesFaultPathRecords(data: Uint8Array): boolean {
+  if (hasCompactV41Layout(data)) return true;
+  if (!hasStandardV41Layout(data)) return false;
+  if (scanClassicTable(data).dtcs.length >= CLASSIC_MIN_CODES) return false;
+  return detectFaultPathDTCs(data, 'EDC15P').dtcs.length >= CLASSIC_MIN_CODES;
+}
+
+/**
+ * Detect all DTCs in an EDC15P file
+ */
+export function detectEDC15PDTCs(data: Uint8Array, family: string = 'EDC15P'): DTCDetectionResult {
+  const errors: string[] = [];
+
+  // Validate file size (EDC15P files are typically 512KB)
+  if (data.length < 0x70000) {
+    errors.push(`File too small for EDC15P (${data.length} bytes, expected at least 458752 bytes)`);
+    return {
+      success: false,
+      ecuType: 'EDC15P',
+      codeblocks: [],
+      dtcs: [],
+      errors,
+    };
+  }
+
+  // Disposition compacte (blocs de 0xC000 signés V4.1 à 0x58001/0x64001 :
+  // EDC15VM 012K / 012L / 012AA / 012AP / 012CP, EDC15P 019AJ / 019AN) : la
+  // table des DTC n'y a pas le format 8 octets à marqueur 0x23 mais des
+  // enregistrements par chemin de défaut, lus par edc15-fault-paths.ts.
+  if (usesFaultPathRecords(data)) {
+    return detectFaultPathDTCs(data, family);
+  }
+
+  // Disposition précoce (aucune signature V4.1, 038906019A) : format encore
+  // inconnu — les plages classiques y lisaient des entrées fantaisistes.
+  // Non supportée pour l'instant ; le message nomme la famille réelle.
+  if (!hasStandardV41Layout(data)) {
+    errors.push(`${family}: the DTC table of this software version uses another layout, not supported yet`);
+    return {
+      success: false,
+      ecuType: 'EDC15P',
+      codeblocks: [],
+      dtcs: [],
+      errors,
+    };
+  }
+
+  const { codeblocks, dtcs } = scanClassicTable(data);
+  if (!codeblocks.some((cb) => cb.isValid)) {
+    errors.push('No valid codeblocks detected in the file');
+    return {
+      success: false,
+      ecuType: family,
+      codeblocks,
+      dtcs: [],
+      errors,
+    };
+  }
+
+  return {
+    success: true,
+    ecuType: family,
+    codeblocks,
+    dtcs,
+    errors,
+  };
+}
+
+/**
+ * Disable a DTC in EDC15P binary data
+ *
+ * Sets the DTC entry to disabled state:
+ * - Status: 0xFFFF (bytes -6, -5)
+ * - Flags: 0x0000 (bytes -4, -3)
+ * - Type: 0x00 (byte -2)
+ * - Marker 0x23 unchanged (byte -1)
+ *
+ * This handles all cases including:
+ * - Standard: [30 00] [30 00] [11 23] -> [FF FF] [00 00] [00 23]
+ * - Inverted: [00 00] [FF FF] [00 23] -> [FF FF] [00 00] [00 23]
+ * - Type 0x41: [30 00] [30 00] [41 23] -> [FF FF] [00 00] [00 23]
+ * - Already 0xFFFF status but active type: [FF FF] [30 00] [11 23] -> [FF FF] [00 00] [00 23]
+ */
+export function disableEDC15PDTC(
+  data: Uint8Array,
+  dtc: DetectedDTC,
+  codeblocks: CodeblockInfo[]
+): { modifiedData: Uint8Array; changedAddresses: number[] } {
+  if (usesFaultPathRecords(data)) {
+    return disableFaultPathDTC(data, dtc);
+  }
+  const modifiedData = new Uint8Array(data);
+  const changedAddresses: number[] = [];
+
+  for (const codeblock of codeblocks.filter((cb) => cb.isValid)) {
+    const searchStart = codeblock.startAddress + DTC_AREA_START_OFFSET;
+    const searchEnd = Math.min(
+      codeblock.startAddress + DTC_AREA_END_OFFSET,
+      codeblock.endAddress,
+      data.length - 8
+    );
+
+    for (let i = searchStart; i < searchEnd - 1; i++) {
+      const vagCode = modifiedData[i] | (modifiedData[i + 1] << 8);
+
+      if (vagCode === dtc.vagCode) {
+        // Check if marker 0x23 is at i-1
+        if (i >= 1 && modifiedData[i - 1] === 0x23) {
+          if (i >= 6) {
+            // Read current values to check if already disabled
+            const currentStatus = modifiedData[i - 6] | (modifiedData[i - 5] << 8);
+            const currentFlags = modifiedData[i - 4] | (modifiedData[i - 3] << 8);
+            const currentType = modifiedData[i - 2];
+
+            // Check if already fully disabled
+            const isAlreadyDisabled =
+              currentStatus === 0xffff && currentFlags === 0x0000 && currentType === 0x00;
+
+            if (!isAlreadyDisabled) {
+              // Set status to 0xFFFF (disabled)
+              modifiedData[i - 6] = 0xff;
+              modifiedData[i - 5] = 0xff;
+              changedAddresses.push(i - 6, i - 5);
+
+              // Set flags to 0x0000
+              modifiedData[i - 4] = 0x00;
+              modifiedData[i - 3] = 0x00;
+              changedAddresses.push(i - 4, i - 3);
+
+              // Set type to 0x00 (keep marker 0x23)
+              modifiedData[i - 2] = 0x00;
+              changedAddresses.push(i - 2);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const uniqueAddresses = [...new Set(changedAddresses)].sort((a, b) => a - b);
+  return { modifiedData, changedAddresses: uniqueAddresses };
+}
+
+/**
+ * Enable a DTC in EDC15P binary data
+ *
+ * Sets the DTC entry to enabled state:
+ * - Status: 0x0030 (bytes -6, -5)
+ * - Flags: 0x0030 (bytes -4, -3)
+ * - Type: 0x11 (byte -2)
+ * - Marker 0x23 unchanged (byte -1)
+ */
+export function enableEDC15PDTC(
+  data: Uint8Array,
+  dtc: DetectedDTC,
+  codeblocks: CodeblockInfo[]
+): { modifiedData: Uint8Array; changedAddresses: number[] } {
+  if (usesFaultPathRecords(data)) {
+    return enableFaultPathDTC(data, dtc);
+  }
+  const modifiedData = new Uint8Array(data);
+  const changedAddresses: number[] = [];
+
+  for (const codeblock of codeblocks.filter((cb) => cb.isValid)) {
+    const searchStart = codeblock.startAddress + DTC_AREA_START_OFFSET;
+    const searchEnd = Math.min(
+      codeblock.startAddress + DTC_AREA_END_OFFSET,
+      codeblock.endAddress,
+      data.length - 8
+    );
+
+    for (let i = searchStart; i < searchEnd - 1; i++) {
+      const vagCode = modifiedData[i] | (modifiedData[i + 1] << 8);
+
+      if (vagCode === dtc.vagCode) {
+        if (i >= 1 && modifiedData[i - 1] === 0x23) {
+          if (i >= 6) {
+            // Read current values to check if disabled
+            const currentStatus = modifiedData[i - 6] | (modifiedData[i - 5] << 8);
+            const currentFlags = modifiedData[i - 4] | (modifiedData[i - 3] << 8);
+            const currentType = modifiedData[i - 2];
+
+            // Only enable if currently disabled (status=0xFFFF, flags=0x0000, type=0x00)
+            const isDisabled =
+              currentStatus === 0xffff && currentFlags === 0x0000 && currentType === 0x00;
+
+            if (isDisabled) {
+              // Set status to 0x0030 (enabled)
+              modifiedData[i - 6] = 0x30;
+              modifiedData[i - 5] = 0x00;
+              changedAddresses.push(i - 6, i - 5);
+
+              // Set flags to 0x0030
+              modifiedData[i - 4] = 0x30;
+              modifiedData[i - 3] = 0x00;
+              changedAddresses.push(i - 4, i - 3);
+
+              // Set type to 0x11 (enabled)
+              modifiedData[i - 2] = 0x11;
+              changedAddresses.push(i - 2);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const uniqueAddresses = [...new Set(changedAddresses)].sort((a, b) => a - b);
+  return { modifiedData, changedAddresses: uniqueAddresses };
+}
+
+/**
+ * Get unique systems from detected DTCs
+ */
+export function getEDC15PDTCSystems(dtcs: DetectedDTC[]): string[] {
+  const systems = new Set<string>();
+  dtcs.forEach((dtc) => {
+    if (dtc.system) {
+      systems.add(dtc.system);
+    }
+  });
+  return Array.from(systems).sort();
+}

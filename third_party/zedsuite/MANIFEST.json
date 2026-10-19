@@ -1,0 +1,15 @@
+{
+  "LICENSE": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+  "NOTICE": "a43f0061a72888352862523fd66088cca79bc91c42768add1b3a376f93fd1f50",
+  "TRADEMARKS.md": "54aa5d1fbf236f9540949307508d71e4376f4a638c3563c0fa3cfe846ae82cca",
+  "src/lib/ecu/bosch/checksums/edc15p-checksum.ts": "2156f051c7e23ead8ad193ea783db571d97137489e99492c0c354d23a7f40689",
+  "src/lib/ecu/bosch/dtc/edc15p.ts": "a96c6856f477effa713f94674035bad4a19fa5d5acf7f0d90f73a3c674f2b785",
+  "src/lib/ecu/bosch/dtc/dtc-database.ts": "fc04c295e98ef1e9ad501a541183a8f4ca41d93340f05dfe6bc58dfaaf02b406",
+  "src-tauri/src/detector/ecu/bosch/edc15p/complete_patterns.rs": "d85f1c73f905c1c96ab9e9bad988e526636ac6164f7e5b1d56f200c65832dc01",
+  "src-tauri/src/detector/ecu/bosch/edc15p/mod.rs": "57bea7d99c38beae721e5565df055ec7758eabfcac943a4f176d97dd1b55db35",
+  "src-tauri/src/detector/ecu/bosch/edc15p/layout.rs": "5bb1c7d0aa4127b22054b00c40ff86b2bfec514ef50a36dea74363ca00e1ca7c",
+  "src-tauri/src/mappack_import.rs": "af471c8eac1b549f55ad69be19138bf7721c091bf69c1de40def609c99c82a61",
+  "src/lib/mappack-export.ts": "e762b1881336ef567b7df91d5b26f03112618614f5dabffdd6b3dbc46c01b22a",
+  "src-tauri/src/detector/ecu/bosch/edc15p/early.rs": "a1fb59818238a8e379601a4a1ffb6fedf0cdf21098fc00b567ad17220c1a1573",
+  "src-tauri/src/detector/ecu/bosch/egr_temperature.rs": "9d92c77e368ddcc781880133b2ea934778f41599e1d350849277360b8779f625"
+}

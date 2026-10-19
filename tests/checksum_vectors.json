@@ -1,0 +1,34 @@
+{
+  "recipe": "byte[i]=(i*17+3)&255; signature at 0x70001; then write the five oracle values",
+  "original_sha256": "2365973edb36ae93eb85b11bb60fd07bd483f20f25a05f40fc7196f3606cb24d",
+  "corrected_sha256": "e9134730d04cda8c025d5a9c967862ef22a50f4f4edca179383961d83a07adab",
+  "info": {
+    "result": "TYPE_ERROR",
+    "found": 5,
+    "fixed": 5,
+    "matched": 0,
+    "variant": "tdi41_2002"
+  },
+  "stores": [
+    [
+      65532,
+      1907628530
+    ],
+    [
+      81916,
+      409834325
+    ],
+    [
+      458748,
+      3360258163
+    ],
+    [
+      461692,
+      3346954841
+    ],
+    [
+      507900,
+      3451531839
+    ]
+  ]
+}

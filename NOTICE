@@ -1,0 +1,28 @@
+OpenCal â€” offline binary calibration workbench, version 0.4
+Copyright (c) 2026 OpenCal contributors.
+
+This combined distribution is licensed under GNU GPL version 3 only.
+You may use, modify and redistribute it under that license (see LICENSE).
+There is ABSOLUTELY NO WARRANTY, including no warranty of ECU compatibility.
+
+Portions adapted from ZedSuite, Copyright (C) 2026 ZedPerf and contributors,
+licensed GPL-3.0-only: EDC15 pattern metadata and structural detection subset,
+standard V4.1 2002 checksums, classic DTC record handling and DTC descriptions.
+ZedSuite/WinOLS-compatible JSON import field conventions were adapted from the
+upstream mappack import/export sources, also retained with original notices.
+Original upstream sources, license and notices are retained in third_party/zedsuite.
+Original archive: ZedSuite-master.zip provided by the user on 2026-10-18.
+Upstream package version: 1.2.6. No Git revision was present in the archive.
+Upstream: https://github.com/LeZed97/ZedSuite
+
+Changes made 2026-10-18: Python ports, conservative structural detection,
+explicit unknown checksum results, correction gated by matching original sums,
+exact original DTC restoration, bounds validation and OpenCal integration.
+The initial OpenCal 0.1 code retains its MIT notice in LICENSE-MIT-0.1; the
+combined release including GPL-derived components is conveyed under GPL-3.0-only.
+
+OpenCal is independent and is not endorsed by ZedPerf. No ZedSuite logo, icons,
+mascot or product identity is used. VAG EDC Suite executable code and embedded
+proprietary databases have not been incorporated. User ECU files are not bundled.
+
+Additional 0.3 changes: source-backed selector, curve and scalar passes; checked ORI metadata transfer; reference fingerprints; original workbench and 3D editor.

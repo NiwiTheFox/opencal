@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.ocproj
+*.audit.json
+*.bin
+!examples/synthetic.bin
+*.ori
+dist/
+exports/
+user-data/
+to use/
