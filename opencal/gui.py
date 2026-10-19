@@ -64,7 +64,7 @@ class App:
         if not self.doc:
             return None
         d = self.doc
-        return (digest(d.data), json.dumps(d.definitions, sort_keys=True), tuple((k, digest(v)) for k, v in sorted(d.profiles.items())), len(d.history))
+        return (digest(d.data), json.dumps(d.definitions, sort_keys=True), tuple((k, digest(v)) for k, v in sorted(d.profiles.items())), len(d.history), digest(d.dtc_reference) if d.dtc_reference is not None else None)
 
     def can_leave(self):
         return self.state() == self.saved_state or mb.askyesno('Unsaved project', 'Discard unsaved project changes?', parent=self.root)

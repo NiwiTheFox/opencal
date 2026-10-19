@@ -206,3 +206,11 @@ Windows bundles also retain the Python, Tcl/Tk and component license notices in
 `RUNTIME-MANIFEST.json`.
 
 OpenCal is independent and is not endorsed by ZedSuite, Bosch, or Volkswagen Group.
+
+## DTC controls
+
+Read the DTC records under **ECU tools & DTCs**. Codes are grouped by system. Click a code’s state button to toggle every matching record; expand its arrow to control individual codeblocks. Green means enabled, red means disabled, and Mixed means the records differ. These are monitoring settings in the BIN, not live vehicle faults.
+
+If a tuned file was already disabled when loaded, use **Load stock DTC reference…** with its matching copied original. OpenCal checks identities and record layouts before it can restore exact enabled bytes. Save a project to retain the checked reference.
+
+See [the update roadmap](docs/ROADMAP.md) for the next releases.

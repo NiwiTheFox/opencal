@@ -201,6 +201,7 @@ class Document:
         self.history = []
         self.definitions = {'schema': 'opencal.definitions', 'version': 1, 'maps': [], 'signatures': []}
         self.profiles = {}
+        self.dtc_reference = None
 
     def edit(self, address, new, label='Hex edit'):
         new = bytes(new)
@@ -267,6 +268,8 @@ class Document:
                    'undo': [[a, b.hex(), c.hex(), d] for a, b, c, d in self.undo_stack],
                    'redo': [[a, b.hex(), c.hex(), d] for a, b, c, d in self.redo_stack],
                    'profiles': {k: base64.b64encode(v).decode() for k, v in self.profiles.items()}}
+        if self.dtc_reference is not None:
+            payload['dtc_reference']={'data':base64.b64encode(self.dtc_reference).decode(),'sha256':digest(self.dtc_reference)}
         atomic_json(p, payload)
 
     @classmethod
@@ -317,6 +320,14 @@ class Document:
                 raise ValueError('Profile has wrong binary size.')
             doc.profiles[k] = data
         doc.protected_paths.add(str(p.resolve()))
+        if 'dtc_reference' in obj:
+            reference=obj['dtc_reference']
+            if not isinstance(reference,dict):raise ValueError('Invalid DTC reference.')
+            raw=base64.b64decode(reference['data'],validate=True)
+            if digest(raw)!=reference['sha256']:raise ValueError('DTC reference integrity check failed.')
+            from .dtc import reference_records
+            reference_records(modified,raw)
+            doc.dtc_reference=raw
         refresh_axes(doc.data,doc.definitions)
         return doc
 

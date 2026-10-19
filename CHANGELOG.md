@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0 — 2026-10-19
+
+English DTC descriptions and system grouping; white-text state buttons with green/red rows; grouped and individual codeblock control; persistent live DTC display; exact stock-reference restoration with project persistence. See [release notes](docs/RELEASE-NOTES.md) for validation and known issues. Upcoming comparison/EGR/C166 work is in [the roadmap](docs/ROADMAP.md).
+
 ## 0.6.1 — 2026-10-19
 
 - Added a portable Windows download containing Python and Tcl/Tk. Extract the

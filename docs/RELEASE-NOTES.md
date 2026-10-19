@@ -1,73 +1,29 @@
-# OpenCal 0.6.1 — 19 October 2026
+# OpenCal 0.7.0 — English DTC workspace
 
-## New in this patch
+Development preview. Extract the whole Windows ZIP and run OpenCal.exe. Python and Tcl/Tk are included; no installation or account is required.
 
-The Windows ZIP includes its own 64-bit CPython and Tcl/Tk runtime. Extract the
-whole folder and launch OpenCal.exe. No Python installation, pip packages or
-internet connection is required to run it. The source ZIP stays separate.
-Runtime/component license notices and a runtime version manifest are included.
-The build checks that the interpreter and Tcl/Tk libraries load from inside the
-bundle while external Python environment paths are deliberately invalid.
+## What changed
 
-This patch also preserves expanded/collapsed codeblock and category groups after
-edits and undo. The 0.6.0 sidebar reset them during refresh.
-
-## Included 0.6 features
-
-This update addresses the reported map-editing, codeblock-label and hexdump problems.
-
-## Changes
-
-- Edit ROM X/Y breakpoints through a physical-value dialog and a stored-byte
-  preview. Shared axes refresh across related maps, including after undo/redo
-  and project reopening. Old imported projects recover encoding when possible.
-- Edit table cells in place with Enter/Esc. Preview batch set/add/percentage
-  changes, endpoint interpolation, numeric CSV import and whole-map restoration.
-- Copy a table to other calibration banks only when definitions, encodings,
-  relative addresses and current axis headers/bytes match.
-- Scroll the hexdump through the entire BIN with its scrollbar, wheel or keyboard.
-  Click a hex or ASCII byte to select its edit address.
-- Group supported codeblocks using firmware metadata IDs. The private tuned
-  fixture's IDs are 4/5/3; they are not inferred from bank position. Invalid
-  metadata is labelled unknown.
-- Resize the table/graph split. Keep lower controls visible at smaller sizes.
-- Retain custom launch-control axes using evidence from the loaded original.
-- Reject out-of-range stored rounding and inconsistent project undo/redo data.
-- Provide a friendlier README, cumulative changelog and test-gated release workflow.
+- All 1,776 bundled DTC descriptions and system categories are English, using the supplied GPL ZedSuite English/bilingual sources with complete coverage checks.
+- DTCs are grouped by system and fault code. Each code has a real Enabled/Disabled button: enabled row text is green, disabled row text red, and button text stays white. Mixed states are explicit.
+- A group button edits all matching codeblocks as one undo operation. Expand a code to inspect and control individual records. Search includes descriptions, P-codes, VAG codes and codeblock labels; state filters and counts are available.
+- DTC records stay visible and update after edits, undo and redo. Expansion and scroll position are preserved.
+- Load stock DTC reference enables exact restoration for a tuned input already disabled when opened. Embedded ECU/hardware/software IDs, per-bank IDs and whole DTC record topology are checked; ambiguous banks are refused. Loaded-original enabled bytes take priority. No generic enabled monitoring values are guessed.
+- The checked reference is retained inside a saved project with an integrity hash. Attaching it marks the project unsaved and never changes calibration bytes.
+- A staged roadmap covers live comparison, verified EGR solutions, C166/C167 disassembly and assembly.
 
 ## Validation
 
-81 tests pass under the bundled Windows interpreter, with the GUI smoke workflow and private ECU-copy checks also passing. The underlying 0.6 model passed on Python 3.13 and 3.14. The
-copied supported corpus passes 14,373 axis edit/undo cases and 9,660 cell
-edit/undo cases across 4,073 map grids in 31 unique binaries. All tested copied
-BINs remain byte-for-byte unchanged on disk. The GUI regression rendered all
-71 original-fixture maps, 213 ORI-derived tuned maps and 203 separately imported
-reference-comparison maps. Older imported projects were reopened and axis edits
-were undone exactly. These are software checks, not vehicle tests.
+88 local tests passed (one portable-only test skipped in the source run), including synthetic duplicate/mixed DTC records, individual and grouped edits, exact undo/redo, reference mismatches, project-reference integrity and the copied stock/V9 reference (504 records). Existing editing, axes, hex, checksum, detection and export regressions passed. GUI smoke passed. Native Windows inspection of the copied V9 file confirmed English grouping, white button labels, green/red states, all-bank toggling and exact undo to zero changed bytes. Original firmware was not opened from USB or changed.
 
 ## Known issues and limits
 
-- Map detection remains incomplete outside the validated standard EDC15 layouts.
-  Candidate names, scaling and dimensions still require review.
-- Cell selection supports one directly edited cell or selected rows for batch
-  operations. Arbitrary rectangular cell selection/paste is not implemented.
-- Legacy axes without recoverable storage metadata stay read-only. Reimport a
-  supported mappack or detect again; the app will not guess an encoding.
-- The 3D surface uses row/column indices rather than physical axis spacing.
-- Non-monotonic interpolation axes use index spacing. Interpolation changes
-  stored values and rounds to the map's numeric precision.
-- ROM axis edits do not automatically preserve monotonic order; original maps
-  can contain non-monotonic selector axes. Review breakpoints before applying.
-- Preview dialogs remain separate windows. An operation is rejected if the BIN,
-  definitions or open project has changed since its preview.
-- Launch-control vehicle behaviour and ECU multimap switching remain unverified.
-  Codeblock groups and project snapshots do not establish switchable ECU maps.
-- Checksum correction covers the enabled standard V4.1 / 2002 layout only.
-  A matched checksum does not validate engine operation or flashing suitability.
-- The DTC list clears after unrelated edits or undo; use Read DTC records again.
-- The portable ZIP is 64-bit Windows only; keep all extracted files together.
-  Isolation/startup is tested here; a clean Windows virtual machine was not tested.
-  The source ZIP still requires Python/Tk. Public tests skip private fixtures.
-
-See [CHANGELOG.md](../CHANGELOG.md) for earlier versions and
-[SOURCE-REVIEW.md](SOURCE-REVIEW.md) for the additional public source research.
+- DTC enabling needs exact known enabled bytes in the loaded original or a validated matching stock reference. A factory-disabled reference cannot recover an enabled state. Mixed group buttons enable matching records; use expanded record controls for individual changes.
+- DTC scanning supports selected standard V4.1 classic EDC15 record layouts; unsupported/fault-path layouts remain unsupported. These are firmware monitoring settings, not live fault readings.
+- A stock reference contains private firmware inside your project. Projects and reference data are not included in public releases.
+- Opening projects with this new reference field in older OpenCal releases will ignore that optional restoration reference. Use 0.7 or newer to retain it when resaving.
+- Map discovery and semantics still need review outside the validated standard EDC15 layouts. Other ECU families, generic EDC16 checksums and ECU map-switching patches remain unsupported.
+- Existing table editing selects cells or whole rows; arbitrary rectangular paste is not implemented. 3D plots use indexed spacing. Nonmonotonic axis interpolation uses index spacing.
+- Launch-control byte edits have source parity tests but no vehicle execution validation. Matching checksums do not validate calibration or execution.
+- Live comparison windows, automatic EGR and the C166/C167 code workspace are planned, not implemented in this release.
+- Windows portable builds are 64-bit and require the whole extracted folder. No clean Windows VM validation has been performed.

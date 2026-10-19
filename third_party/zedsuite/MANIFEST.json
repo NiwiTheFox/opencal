@@ -13,5 +13,7 @@
   "src-tauri/src/detector/ecu/bosch/edc15p/early.rs": "a1fb59818238a8e379601a4a1ffb6fedf0cdf21098fc00b567ad17220c1a1573",
   "src-tauri/src/detector/ecu/bosch/egr_temperature.rs": "9d92c77e368ddcc781880133b2ea934778f41599e1d350849277360b8779f625",
   "src/lib/ecu/solutions/index.ts": "b918d1c08e4cad722d2be1064dd7855c289b2ca49a553f99983fbfe170365eb8",
-  "src-tauri/src/detector/ecu/bosch/launch_control.rs": "b3dfce6503d2ddb5cb19daedd294f6090a97ac2657554b5c0860e63c6756c673"
+  "src-tauri/src/detector/ecu/bosch/launch_control.rs": "b3dfce6503d2ddb5cb19daedd294f6090a97ac2657554b5c0860e63c6756c673",
+  "src/lib/ecu/bosch/dtc/translations/en.ts": "cbfe110e13665ea3448a0699e8cefc6606345fe323c9d1d3491b26218b9584bd",
+  "src/lib/ecu/bosch/dtc/dtc-i18n.ts": "61ddc30967d0ee88e6cf83d51dcd5ff975f3309e492f33691240742cc427043c"
 }

@@ -135,6 +135,16 @@ class App(BaseApp):
         from .hex_view import build
         build(self)
 
+    def build_ecu(self):
+        bar=ttk.Frame(self.ecu_tab,padding=12);bar.pack(fill='x')
+        for label,fn in [('Identify ECU',self.identify),('Verify checksums',self.verify_checksums),('Correct checksums…',self.correct_checksums)]:
+            ttk.Button(bar,text=label,command=lambda f=fn:self.run(f)).pack(side='left',padx=(0,6))
+        from .dtc_ui import DTCPanel
+        self.dtc_panel=DTCPanel(self,self.ecu_tab)
+
+    def read_dtcs(self):
+        self.dtc_panel.read()
+
     def render_hex(self):
         from .hex_view import render
         render(self)
@@ -165,7 +175,7 @@ class App(BaseApp):
         self.pack_count.set('MAPPACK · 0'); self.detection_label.set('No binary loaded'); self.checksum_badge.set('Checksums · not checked')
         self.status.set('Project closed'); self.show_welcome()
         self.hex.configure(state='normal'); self.hex.delete('1.0','end'); self.hex.configure(state='disabled')
-        self.dtc_tree.delete(*self.dtc_tree.get_children())
+        self.dtc_panel.refresh()
         self.profiles.delete(0,'end'); self.analysis.configure(state='normal'); self.analysis.delete('1.0','end'); self.analysis.configure(state='disabled')
         from .solutions_ui import refresh_solutions
         refresh_solutions(self)
@@ -292,6 +302,7 @@ class App(BaseApp):
         self.filter_maps()
         self.checksum_badge.set('Checksums · click to verify')
         refresh_solutions(self)
+        self.dtc_panel.refresh()
         if self.active_map is not None and self.active_map<len(d.definitions['maps']): self.render_map(self.active_map)
 
     def view_map(self):

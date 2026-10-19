@@ -36,7 +36,7 @@ if stock.exists():
     with patch('opencal.workbench.mb.showinfo'):
         app.discover_edc()
     assert len(app.map_leaf_ids())==71
-    app.read_dtcs(); assert len(app.dtc_tree.get_children())==168
+    app.read_dtcs(); assert len(app.dtc_panel.records)==168
     app.verify_checksums(); assert '"matched": 5' in app.analysis.get('1.0','end')
     data=bytes(app.doc.data); app.doc.edit(0x6c900,bytes([app.doc.data[0x6c900]^1]))
     with patch('opencal.gui.mb.askyesno',return_value=True): app.correct_checksums()
