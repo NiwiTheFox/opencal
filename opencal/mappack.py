@@ -89,16 +89,34 @@ def import_mappack(obj,data,source='User-supplied ZedSuite/WinOLS JSON'):
                 axis_address=address(raw)
                 if axis_address==0: continue
                 if get(f'Axis{letter}.DataSrc','eRom')!='eRom': raise ValueError('Only ROM axes are supported.')
-                _,axis_fmt,_=data_org(get(f'Axis{letter}.DataOrg','eLoHi'),truth(get(f'Axis{letter}.bSigned',False)))
+                axis_type,axis_fmt,axis_endian=data_org(get(f'Axis{letter}.DataOrg','eLoHi'),truth(get(f'Axis{letter}.bSigned',False)))
                 width=struct.calcsize(axis_fmt)
                 if axis_address<0 or axis_address+count*width>len(data): raise ValueError('Axis outside binary.')
                 factor=numeric(get(f'Axis{letter}.Factor',1)); offset=numeric(get(f'Axis{letter}.Offset',0))
                 values=[struct.unpack_from(axis_fmt,data,axis_address+i*width)[0]*factor+offset for i in range(count)]
                 m[key]={'address':axis_address,'values':values,'name':str(get(f'Axis{letter}.Name','')),
-                        'unit':str(get(f'Axis{letter}.Unit','')),'display_backwards':truth(get(f'Axis{letter}.bBackwards',False))}
+                        'unit':str(get(f'Axis{letter}.Unit','')),'display_backwards':truth(get(f'Axis{letter}.bBackwards',False)),
+                        'type':axis_type,'endian':axis_endian,'factor':factor,'offset':offset}
             validate_definitions({'schema':'opencal.definitions','version':1,'maps':[m]},len(data))
             maps.append(m)
         except (ValueError,TypeError,KeyError,OverflowError,struct.error) as exc:
             skipped.append({'index':index,'reason':str(exc)})
     if not maps: raise ValueError('No supported maps: '+str(skipped[:5]))
     return {'schema':'opencal.definitions','version':1,'maps':maps,'signatures':[]},skipped
+
+
+def upgrade_legacy_axes(definitions,data):
+    """Recover encoding only from an old project's retained import descriptor."""
+    for m in definitions['maps']:
+        missing=[k for k in ('x_axis','y_axis') if k in m and 'type' not in m[k]]
+        if not missing or 'original_fields' not in m:continue
+        try:imported,skipped=import_mappack([m['original_fields']],data)
+        except (ValueError,TypeError):continue
+        if skipped:continue
+        fresh=imported['maps'][0]
+        if any(fresh[k]!=m[k] for k in ('address','rows','columns')):continue
+        for key in missing:
+            new=fresh.get(key,{})
+            if new.get('address')!=m[key].get('address') or 'type' not in new:continue
+            m[key].update({k:new[k] for k in ('type','endian','factor','offset','values')})
+    return definitions

@@ -90,6 +90,15 @@ def validate_definitions(doc, size):
                     raise ValueError('Axis values must match map dimensions.')
                 if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in axis['values']):
                     raise ValueError('Axis values must be finite numbers.')
+                if 'type' in axis:
+                    if axis['type'] not in TYPES or axis.get('endian') not in ('little','big'):
+                        raise ValueError('Unsupported axis storage type or byte order.')
+                    for field in ('factor','offset'):
+                        if not isinstance(axis.get(field),(int,float)) or not math.isfinite(axis[field]):
+                            raise ValueError('Axis scaling must be finite.')
+                    if axis['factor']==0: raise ValueError('Axis factor cannot be zero.')
+                    a=number(axis.get('address',-1)); width=struct.calcsize(TYPES[axis['type']])
+                    if a<0 or a+count*width>size: raise ValueError('Axis is outside the binary.')
     for s in doc.get('signatures', []):
         if not all(k in s for k in ('family', 'name', 'address', 'hex', 'source', 'license')):
             raise ValueError('Incomplete identification signature.')
@@ -104,6 +113,45 @@ def map_values(data, m):
     width = struct.calcsize(fmt)
     return [struct.unpack_from(fmt, data, number(m['address']) + i * width)[0] * m['factor'] + m['offset']
             for i in range(m['rows'] * m['columns'])]
+
+
+def encode_map_value(m,physical):
+    if not isinstance(physical,(int,float)) or not math.isfinite(physical):
+        raise ValueError('Map values must be finite numbers.')
+    if not m.get('minimum',-math.inf)<=physical<=m.get('maximum',math.inf):
+        raise ValueError('Value outside definition limits.')
+    raw=(physical-m['offset'])/m['factor']
+    if not math.isfinite(raw): raise ValueError('Value cannot be represented with this scaling.')
+    if m['type']!='f32': raw=round(raw)
+    fmt=('<' if m['endian']=='little' else '>')+TYPES[m['type']]
+    try:
+        encoded=struct.pack(fmt,raw)
+        stored=struct.unpack(fmt,encoded)[0]*m['factor']+m['offset']
+        if not math.isfinite(stored): raise ValueError('Stored value must remain finite.')
+        if not m.get('minimum',-math.inf)<=stored<=m.get('maximum',math.inf):
+            raise ValueError('Rounded stored value is outside definition limits.')
+        return encoded
+    except (struct.error,OverflowError) as exc:
+        raise ValueError(f'Value cannot be stored as {m["type"]}.') from exc
+
+
+def axis_values(data,m,key,strict=False):
+    """Decode live ROM axes when storage is known; retain legacy display labels."""
+    axis=m.get(key)
+    count=m['columns'] if key=='x_axis' else m['rows']
+    if not axis: return list(range(1,count+1))
+    if 'type' not in axis:
+        if strict and 'address' in axis:
+            raise ValueError('Reimport this mappack or detect maps again to obtain editable axis storage.')
+        return list(axis['values'])
+    view=dict(axis,rows=1,columns=count)
+    return map_values(data,view)
+
+
+def refresh_axes(data,definitions):
+    for m in definitions['maps']:
+        for key in ('x_axis','y_axis'):
+            if 'type' in m.get(key,{}): m[key]['values']=axis_values(data,m,key)
 
 
 def identify(data, definitions):
@@ -186,15 +234,9 @@ class Document:
         return self.data.find(pattern, start)
 
     def set_map_cell(self, m, index, physical):
-        if not 0 <= index < m['rows'] * m['columns'] or not math.isfinite(physical):
+        if type(index) is not int or not 0 <= index < m['rows'] * m['columns']:
             raise ValueError('Invalid cell or value.')
-        if not m.get('minimum', -math.inf) <= physical <= m.get('maximum', math.inf):
-            raise ValueError('Value outside definition limits.')
-        raw = (physical - m['offset']) / m['factor']
-        if m['type'] != 'f32':
-            raw = round(raw)
-        fmt = ('<' if m['endian'] == 'little' else '>') + TYPES[m['type']]
-        encoded = struct.pack(fmt, raw)
+        encoded=encode_map_value(m,physical)
         self.edit(number(m['address']) + index * len(encoded), encoded, m['name'])
 
     def report(self):
@@ -233,7 +275,7 @@ class Document:
         if p.stat().st_size > MAX_FILE * 6:
             raise ValueError('Project exceeds size limit.')
         obj = json.loads(p.read_text(encoding='utf-8'))
-        if obj.get('schema') != 'opencal.project' or obj.get('version') != 1:
+        if not isinstance(obj,dict) or obj.get('schema') != 'opencal.project' or obj.get('version') != 1:
             raise ValueError('Unsupported project schema/version.')
         original = base64.b64decode(obj['original'], validate=True)
         modified = base64.b64decode(obj['modified'], validate=True)
@@ -242,7 +284,12 @@ class Document:
         doc = cls(original, obj.get('source'))
         doc.data[:] = modified
         doc.definitions = validate_definitions(obj['definitions'], len(original))
+        from .mappack import upgrade_legacy_axes
+        upgrade_legacy_axes(doc.definitions,doc.data)
+        validate_definitions(doc.definitions,len(original))
         doc.history = obj['history']
+        if not isinstance(doc.history,list) or any(not isinstance(e,dict) for e in doc.history):
+            raise ValueError('Invalid project history.')
         for key in ('undo', 'redo'):
             stack = []
             for a, b, c, d in obj.get(key, []):
@@ -251,12 +298,26 @@ class Document:
                     raise ValueError('Invalid project edit history.')
                 stack.append((a, b, c, d))
             setattr(doc, key + '_stack', stack)
+        # Hashes cover payloads, but an independently damaged undo record must
+        # not be allowed to introduce unrelated bytes on the next Undo/Redo.
+        replay=bytearray(original)
+        for a,before,after,label in doc.undo_stack:
+            if bytes(replay[a:a+len(before)])!=before:
+                raise ValueError('Project undo history is inconsistent with original bytes.')
+            replay[a:a+len(after)]=after
+        if replay!=modified: raise ValueError('Project edit history does not reproduce the modified BIN.')
+        for a,before,after,label in reversed(doc.redo_stack):
+            if bytes(replay[a:a+len(before)])!=before:
+                raise ValueError('Project redo history is inconsistent with current bytes.')
+            replay[a:a+len(after)]=after
+        if not isinstance(obj.get('profiles',{}),dict):raise ValueError('Invalid project snapshots.')
         for k, v in obj.get('profiles', {}).items():
             data = base64.b64decode(v, validate=True)
             if len(data) != len(original):
                 raise ValueError('Profile has wrong binary size.')
             doc.profiles[k] = data
         doc.protected_paths.add(str(p.resolve()))
+        refresh_axes(doc.data,doc.definitions)
         return doc
 
     def export(self, path):

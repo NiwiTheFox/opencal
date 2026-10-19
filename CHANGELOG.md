@@ -1,0 +1,46 @@
+# Changelog
+
+## 0.6.0 — 2026-10-19
+
+- Added ROM X/Y axis editing with before/after previews and shared-storage details.
+- Added inline table-cell editing, batch set/add/percent operations, interpolation,
+  numeric CSV import, map restoration and guarded copying to matching banks.
+- Fixed stale axis headers after edits and undo/redo; older imported projects can
+  recover their axis encoding from retained descriptors.
+- Replaced the fixed hexdump page with file-wide scrolling, keyboard navigation,
+  horizontal scrolling and click-to-select byte addresses.
+- Added codeblock groups and firmware metadata IDs. Bank addresses no longer
+  masquerade as codeblock numbers; unreadable IDs remain explicitly unknown.
+- Added a resizable table/graph split, clearer table styling and centered dialogs.
+- Kept custom launch-control axes visible using the loaded original's evidence.
+- Strengthened stored-value bounds and damaged project undo/redo rejection.
+- Added public packaging checks and a test-gated GitHub preview-release workflow.
+
+Known issues: rectangular cell selection/paste is not implemented; legacy axes
+without recoverable encoding are read-only; 3D uses indexed spacing. Detection
+and ECU execution limits are detailed in [release notes](docs/RELEASE-NOTES.md).
+
+## 0.5.0 — 2026-10-18
+
+- Added the Solutions tab and source-backed launch-control speed-axis activation.
+- Added exact byte previews, one-operation undo and original-axis restoration.
+- Matched upstream TypeScript output on the private stock and tuned fixtures.
+- Kept generated solution definitions in sync through undo and redo.
+
+Known issues in 0.5: no dedicated X/Y editor; fixed-page hexdump lacks file-wide
+scrolling; large tables may clip lower controls; codeblock labels use bank
+addresses inconsistently. Customising the launch-control speed axis via hex
+can hide the generated map. These are addressed by the 0.6 changes above.
+
+## 0.4.0 — 2026-10-18
+
+- Added a dedicated single-value editor and separate SVRL/SVBL shortcuts.
+- Fixed scalar presentation, sidebar sizing, font hierarchy and combobox colors.
+- Preserved raw/physical display preferences across edits.
+
+Known issues in 0.4: X/Y axes are not editable through a dedicated dialog;
+hexdump navigation is page-based; large tables can push the graph/controls out
+of view; tuned-map labels use inconsistent bank/codeblock wording.
+
+All versions are development previews. Source-level and byte-level checks do not
+establish on-vehicle behaviour, flashing compatibility or calibration suitability.

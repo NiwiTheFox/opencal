@@ -33,7 +33,7 @@ def source_maps(data,bases):
                 raw=struct.unpack_from('<2H',data,a)
                 if all(700<=v<=1400 for v in raw):
                     m=add(a,1,2,'Idle RPM','Idle / Governor',unit='rpm'); idle_count+=1
-                    m['x_axis']={'address':p+4,'values':[v*.1-273.1 for v in vals],'name':'Coolant temperature','unit':'°C'}
+                    m['x_axis']={'address':p+4,'type':'u16','endian':'little','factor':.1,'offset':-273.1,'values':[v*.1-273.1 for v in vals],'name':'Coolant temperature','unit':'°C'}
             if n==2 and ident in (0xeba2,0xeba4,0xe9bc):
                 raw=struct.unpack_from('<2H',data,a)
                 if 50<=raw[0]<=600 and 1500<=raw[1]<=7000 and raw[0]<raw[1]:
@@ -49,7 +49,7 @@ def source_maps(data,bases):
                 temps=struct.unpack_from('<6H',data,p+18)
                 if all(x<y for x,y in zip(temps,temps[1:])) and 1500<=temps[0] and temps[-1]<=5000 and temps[-1]-temps[0]>=100:
                     m=add(p+30,5,6,'EGR temperature map','EGR')
-                    m['x_axis']={'address':p+18,'values':[v*.1-273 for v in temps],'name':'Temperature','unit':'°C'}
+                    m['x_axis']={'address':p+18,'type':'u16','endian':'little','factor':.1,'offset':-273,'values':[v*.1-273 for v in temps],'name':'Temperature','unit':'°C'}
                     m['y_axis']={'address':p+4,'values':vals,'name':'Engine speed','unit':'rpm','display_backwards':True}
         for (a,n,vals),(b,nb,vals_b) in zip(curves,curves[1:]):
             if n!=nb or not 4+4*n<=b-a<=8+4*n: continue
@@ -61,10 +61,10 @@ def source_maps(data,bases):
             p=start+match.start()
             if p+74>end: continue
             m=add(p+22,1,10,'BIP temperature correction','Injection system',.023437,'degrees crank angle')
-            m['x_axis']={'address':p+2,'values':[v*.1-273.1 for v in struct.unpack_from('<10H',data,p+2)],'name':'Temperature','unit':'°C'}
+            m['x_axis']={'address':p+2,'type':'u16','endian':'little','factor':.1,'offset':-273.1,'values':[v*.1-273.1 for v in struct.unpack_from('<10H',data,p+2)],'name':'Temperature','unit':'°C'}
             if data[p+43:p+46]==b'\xc5\x07\0':
                 m=add(p+60,1,7,'BIP SOI correction','Injection system',.023437,'degrees crank angle'); m['type']='i16'
-                m['x_axis']={'address':p+46,'values':[v*.023437 for v in struct.unpack_from('<7h',data,p+46)],'name':'SOI delta','unit':'degrees'}
+                m['x_axis']={'address':p+46,'type':'i16','endian':'little','factor':.023437,'offset':0,'values':[v*.023437 for v in struct.unpack_from('<7h',data,p+46)],'name':'SOI delta','unit':'degrees'}
             if p>=start+206:
                 for q in range(max(start,p-606),p-206-43,2):
                     if data[q+1:q+4]!=b'\xc5\x0a\0': continue
@@ -104,7 +104,7 @@ def source_maps(data,bases):
         if selectors:
             a=min(selectors,key=lambda a:abs(a-start-0x945c))
             m=add(a,6,1,'Selector for injector duration','Injection system',0.003906)
-            m['y_axis']={'address':a-12,'values':[78-v*0.023437 for v in struct.unpack_from('<6H',data,a-12)],'name':'SOI','unit':'degrees BTDC','display_backwards':True}
+            m['y_axis']={'address':a-12,'type':'u16','endian':'little','factor':-.023437,'offset':78,'values':[78-v*0.023437 for v in struct.unpack_from('<6H',data,a-12)],'name':'SOI','unit':'degrees BTDC','display_backwards':True}
         # Temperature-selected SOI family. Require both shared axes rather than
         # emitting editable maps with unknown axes when the source search fails.
         for t in range(start+4480,end-24,2):
@@ -120,7 +120,7 @@ def source_maps(data,bases):
                 if n==16 and ((100<=vals[0]<=1000 and 3000<=vals[-1]<=6000) or ((asc or desc) and min(vals)<=1500 and 2500<=max(vals)<=7000)):
                     shared.setdefault('y',{'address':p+4,'values':vals,'name':'Engine speed','unit':'rpm'})
                 if n==14 and (vals[0]==0 or (asc and vals[0]<=1500 and vals[-1]<=9000)):
-                    shared.setdefault('x',{'address':p+4,'values':[v*.01 for v in vals],'name':'IQ','unit':'mg/st'})
+                    shared.setdefault('x',{'address':p+4,'type':'u16','endian':'little','factor':.01,'offset':0,'values':[v*.01 for v in vals],'name':'IQ','unit':'mg/st'})
             if len(shared)!=2: continue
             selector=add(t+4,1,10,'SOI selector','Injection system',.1,'°C'); selector['offset']=-273.1
             for slot,temp in enumerate(temps):
@@ -145,7 +145,7 @@ def source_maps(data,bases):
                     m=add(a,n,nr,f'Injector duration {slot:02}','Injection system',.023437,'degrees crank angle')
                     m['type']='u16' if slot==0 else 'i16'
                     m['x_axis']={'address':ra,'values':rpm,'name':'Engine speed','unit':'rpm'}
-                    m['y_axis']={'address':ia,'values':[v*.01 for v in iq],'name':'IQ','unit':'mg/st'}
+                    m['y_axis']={'address':ia,'type':'u16','endian':'little','factor':.01,'offset':0,'values':[v*.01 for v in iq],'name':'IQ','unit':'mg/st'}
         for match in re.finditer(re.escape(bytes.fromhex('01 69 10 0F 05 09')),region):
             p=start+match.start()
             if p+226>end: continue
@@ -164,4 +164,10 @@ def source_maps(data,bases):
             for off,name,mult,unit in [(42,'Torque',1000,'Nm'),(66,'MAP',10000,'mbar'),(iq,'IQ',100,'mg/st')]:
                 m=add(p+off,1,1,f'VCDS Diagnostic {name} Display scaling','VCDS diagnostic')
                 m['type']='i16'; m['description']=f'Diagnostic display scaling only. Maximum displayed = 255 / raw value × {mult} {unit}; zero has no defined conversion.'
+    # The remaining axes above use literal unsigned 16-bit engine/sensor values.
+    for m in found.values():
+        for key in ('x_axis','y_axis'):
+            axis=m.get(key,{})
+            if axis and 'type' not in axis:
+                axis.update(type='u16',endian='little',factor=1,offset=0)
     return found

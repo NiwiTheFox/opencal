@@ -9,7 +9,7 @@ from tkinter import font as tkfont
 from pathlib import Path
 from tkinter import ttk,filedialog as fd,messagebox as mb,simpledialog as sd
 from .gui import App as BaseApp
-from .core import Document,read_binary,number,map_values,validate_definitions,digest,atomic_json
+from .core import Document,read_binary,number,map_values,validate_definitions,digest,atomic_json,refresh_axes
 from .checksums import inspect as checksum_inspect
 from .edc15 import discover,identity
 from .catalog import CATALOG,make_profile
@@ -22,7 +22,7 @@ class App(BaseApp):
     def __init__(self,root):
         self.root=root; self.doc=None; self.page=0; self.project=None; self.saved_state=None
         self.active_map=None; self._drawing=False; self._filtering=False
-        root.title('OpenCal 0.5 • Calibration workbench'); root.geometry('1440x900'); root.minsize(1080,700)
+        root.title('OpenCal 0.6 • Calibration workbench'); root.geometry('1440x900'); root.minsize(1080,700)
         root.configure(background=BG); root.protocol('WM_DELETE_WINDOW',self.close)
         # A global *Font option overrides even the Brand/Scalar style fonts.
         # Set the named default instead, keeping each visual hierarchy intact.
@@ -79,7 +79,7 @@ class App(BaseApp):
         self.status=tk.StringVar(value='Ready · open a BIN or a codex project to begin')
         footer=ttk.Frame(root,padding=(15,6)); footer.pack(fill='x')
         ttk.Label(footer,textvariable=self.status,style='Muted.TLabel').pack(side='left')
-        ttk.Button(footer,text='0.5 · GPL / About',command=self.about).pack(side='right')
+        ttk.Button(footer,text='0.6 · GPL / About',command=self.about).pack(side='right')
         self.analysis.configure(background=BG,foreground=FG,insertbackground=FG,relief='flat')
         self.profiles.configure(background=PANEL,foreground=FG,selectbackground='#583728',relief='flat')
         self._sidebar_initialised=False
@@ -108,6 +108,8 @@ class App(BaseApp):
         s.configure('Treeview',background=PANEL,fieldbackground=PANEL,foreground=FG,rowheight=29,borderwidth=0)
         s.map('Treeview',background=[('selected','#59372e')],foreground=[('selected','white')])
         s.configure('Treeview.Heading',background=CARD,foreground=MUTED,padding=7)
+        s.configure('Map.Treeview',font=('Consolas',10),rowheight=30)
+        s.configure('Map.Treeview.Heading',font=('Segoe UI Semibold',10),foreground=FG,padding=(8,9))
         s.configure('TNotebook',background=BG,borderwidth=0)
         s.configure('TNotebook.Tab',background=PANEL,foreground=MUTED,padding=(10,10))
         s.map('TNotebook.Tab',background=[('selected',CARD)],foreground=[('selected',FG)])
@@ -127,6 +129,14 @@ class App(BaseApp):
         ttk.Label(self.map_tab,textvariable=self.detection_label,style='Muted.TLabel',wraplength=950).pack(anchor='w',pady=(0,8))
         self.editor=ttk.Frame(self.map_tab,padding=12); self.editor.pack(fill='both',expand=True)
         self.show_welcome()
+
+    def build_hex(self):
+        from .hex_view import build
+        build(self)
+
+    def render_hex(self):
+        from .hex_view import render
+        render(self)
 
     def show_welcome(self):
         for widget in self.editor.winfo_children(): widget.destroy()
@@ -164,22 +174,43 @@ class App(BaseApp):
         self._filtering=True
         try:
             selected=str(self.active_map) if self.active_map is not None else None
+            open_state={}
+            def remember(parent=''):
+                for item in self.maps.get_children(parent):
+                    if not item.isdigit():open_state[item]=bool(self.maps.item(item,'open'));remember(item)
+            remember()
             self.maps.delete(*self.maps.get_children())
             if not self.doc: return
-            query=self.search.get().strip().lower(); categories={}
+            from .codeblocks import codeblock,map_name
+            from .checksums import standard_bases
+            multiple=len(standard_bases(self.doc.data))>1
+            query=self.search.get().strip().lower(); categories={};blocks={}
             for i,m in enumerate(self.doc.definitions['maps']):
-                if query and query not in (m['name']+' '+m['category']+' '+hex(number(m['address']))).lower(): continue
+                label=map_name(self.doc.data,m)
+                if query and query not in (label+' '+m['category']+' '+hex(number(m['address']))).lower(): continue
+                block=codeblock(self.doc.data,m);parent=''
+                if block:
+                    parent=f'codeblock:{block["base"]}'
+                    if parent not in blocks:
+                        blocks[parent]=block
+                        block_label=str(block['number']) if block['number'] is not None else 'ID unknown'
+                        self.maps.insert('','end',iid=parent,text=f'Codeblock {block_label} · 0x{block["start"]:05X}–0x{block["end"]-1:05X}',open=True if query else open_state.get(parent,not multiple))
                 category=m['category'] or 'Other'
-                if category not in categories:
-                    cid=f'category:{len(categories)}'; categories[category]=cid
-                    self.maps.insert('','end',iid=cid,text=category,open=True)
-                self.maps.insert(categories[category],'end',iid=str(i),text=f'{number(m["address"]):05X}  {m["name"]}',values=(i,))
-            for category,cid in categories.items(): self.maps.item(cid,text=f'{category}  ·  {len(self.maps.get_children(cid))}')
+                key=(parent,category)
+                if key not in categories:
+                    cid=f'category:{parent}:{category}'; categories[key]=cid
+                    self.maps.insert(parent,'end',iid=cid,text=category,open=True if query else open_state.get(cid,True))
+                self.maps.insert(categories[key],'end',iid=str(i),text=f'{number(m["address"]):05X}  {label}',values=(i,))
+            for (_,category),cid in categories.items(): self.maps.item(cid,text=f'{category}  ·  {len(self.maps.get_children(cid))}')
             if selected and self.maps.exists(selected): self.maps.selection_set(selected)
         finally: self._filtering=False
 
     def map_leaf_ids(self):
-        return [leaf for category in self.maps.get_children() for leaf in self.maps.get_children(category)]
+        def leaves(parent=''):
+            for item in self.maps.get_children(parent):
+                if item.isdigit():yield item
+                else:yield from leaves(item)
+        return list(leaves())
 
     def jump_to_map(self,token):
         d=self.need()
@@ -235,12 +266,13 @@ class App(BaseApp):
 
     def refresh(self):
         d=self.need()
+        refresh_axes(d.data,d.definitions)
         from .solutions import launch_control_maps
         from .solutions_ui import refresh_solutions
         # Generated solution definitions must follow current bytes after undo,
         # restore or raw edits. Never keep an active label based on history alone.
         active_id=d.definitions['maps'][self.active_map]['id'] if self.active_map is not None and self.active_map<len(d.definitions['maps']) else None
-        d.definitions['maps']=[m for m in d.definitions['maps'] if not m['id'].startswith('launch-control-')]+launch_control_maps(d.data)
+        d.definitions['maps']=[m for m in d.definitions['maps'] if not m['id'].startswith('launch-control-')]+launch_control_maps(d.data,d.original)
         if active_id is not None:
             self.active_map=next((i for i,m in enumerate(d.definitions['maps']) if m['id']==active_id),None)
             if self.active_map is None:self.show_welcome()

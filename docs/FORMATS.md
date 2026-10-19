@@ -20,9 +20,11 @@ not enforce software compatibility yet.
 `physical = raw * factor + offset`. Integer edits round to the nearest representable
 raw integer (Python ties-to-even); storage overflow is rejected. Unrelated bytes
 are unchanged. Optional `x_axis`/`y_axis` have finite explicit `values` matching
-columns/rows, with optional `name`/`unit`. Axis-address reading and axis editing are
-future schema extensions; v1 graph uses sample indices. Additional unknown keys are
-preserved but do not enable functionality. No XDF import yet.
+columns/rows, with optional `name`/`unit`. Since 0.6, editable ROM axes also carry
+`address`, `type`, `endian`, `factor`, and `offset`. Their storage is bounds-checked
+and headers decode the current bytes, including after hex edits and undo/redo.
+Axes without this storage description remain display labels; the editor does not
+guess an encoding. The 3D graph uses sample indices. No XDF import yet.
 
 Version 0.2 additionally accepts the public ZedSuite/WinOLS JSON export shape,
 as a `maps`/`Maps` list or a bare array, with dotted or nested fields. The adapter

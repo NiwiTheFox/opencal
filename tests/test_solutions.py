@@ -42,6 +42,16 @@ class SolutionTests(unittest.TestCase):
         data,s=fixture();data[s+2:s+32]=b'\x00\x0e'+AXIS[2:]
         self.assertEqual(launch_control_state(data)['status'],'active')
 
+    def test_custom_axis_remains_available_with_original_project_evidence(self):
+        data,s=fixture();d=Document(data);apply_preview(d,preview_launch_control(data))
+        d.edit(s+6,struct.pack('<H',30),'Custom speed breakpoint')
+        state=launch_control_state(d.data,d.original);self.assertEqual(state['status'],'custom')
+        maps=launch_control_maps(d.data,d.original);self.assertEqual(len(maps),1)
+        self.assertEqual(maps[0]['y_axis']['values'][1],30*.15625)
+        # Unanchored scans must not start treating arbitrary tables as a solution.
+        self.assertFalse(launch_control_maps(d.data))
+        apply_preview(d,preview_launch_control(d.data,d.original));self.assertEqual(d.data,data)
+
     @unittest.skipUnless(STOCK.exists() and V9.exists(),'Private copies unavailable')
     def test_private_files_match_upstream_typescript_oracle(self):
         oracle=Path(__file__).resolve().parents[3]/'work/lc-oracle.json'

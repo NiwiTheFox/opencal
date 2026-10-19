@@ -2,17 +2,19 @@
 import csv,math,struct
 import tkinter as tk
 from tkinter import ttk,simpledialog as sd,filedialog as fd
-from .core import map_values,number,TYPES
+from .core import map_values,number,TYPES,axis_values
 
 
 def render_editor(app,index):
     d=app.need(); m=d.definitions['maps'][index]
+    from .codeblocks import map_name,codeblock
     previous=getattr(app,'_editor_preferences',{})
     prefs=previous.get(m['id'],{})
     for child in app.editor.winfo_children(): child.destroy()
     host=app.editor
-    ttk.Label(host,text=m['name'],style='Title.TLabel',wraplength=1000).pack(anchor='w')
-    ttk.Label(host,text=f'0x{number(m["address"]):06X}  ·  {m["rows"]} × {m["columns"]}  ·  {m["unit"] or "raw units"}  ·  {m["verification"]}',style='Muted.TLabel').pack(anchor='w',pady=(5,9))
+    ttk.Label(host,text=map_name(d.data,m),style='Title.TLabel',wraplength=1000).pack(anchor='w')
+    block=codeblock(d.data,m);bank=f' · Bank base 0x{block["base"]:05X}' if block else ''
+    ttk.Label(host,text=f'0x{number(m["address"]):06X}  ·  {m["rows"]} × {m["columns"]}  ·  {m["unit"] or "raw units"}  ·  {m["verification"]}'+bank,style='Muted.TLabel').pack(anchor='w',pady=(5,9))
     controls=ttk.Frame(host); controls.pack(fill='x',pady=(0,9))
     mode=tk.StringVar(value=prefs.get('mode','Physical')); graph_mode=tk.StringVar(value=prefs.get('graph','3D surface' if m['rows']>1 and m['columns']>1 else '2D curve'))
     original_visible=tk.BooleanVar(value=prefs.get('original',False))
@@ -28,33 +30,45 @@ def render_editor(app,index):
     units=ttk.Combobox(controls,textvariable=mode,values=['Physical','Raw'],state='readonly',width=10); units.pack(side='left')
     ttk.Checkbutton(controls,text='Show original',variable=original_visible).pack(side='left',padx=12)
     plot_select=ttk.Combobox(controls,textvariable=graph_mode,values=['3D surface','2D curve'],state='readonly',width=13); plot_select.pack(side='right')
-    table_frame=ttk.Frame(host); table_frame.pack(fill='both',expand=True)
+    tools=ttk.Frame(host);tools.pack(fill='x',pady=(0,10))
+    split=ttk.Panedwindow(host,orient='vertical')
+    table_frame=ttk.Frame(split);split.add(table_frame,weight=3)
     cols=[str(i) for i in range(m['columns'])]
     column_order=list(reversed(cols)) if m.get('x_axis',{}).get('display_backwards') else cols
     row_order=list(range(m['rows']))
     if m.get('y_axis',{}).get('display_backwards'): row_order.reverse()
-    table=ttk.Treeview(table_frame,columns=cols,show='tree headings',height=min(12,m['rows']),selectmode='browse')
+    table=ttk.Treeview(table_frame,columns=cols,show='tree headings',height=min(12,m['rows']),selectmode='extended',style='Map.Treeview')
     table.configure(displaycolumns=column_order)
-    table.heading('#0',text=m.get('y_axis',{}).get('name','Row axis')); table.column('#0',width=90,stretch=False)
+    y_axis=m.get('y_axis',{})
+    table.heading('#0',text='Y · '+(y_axis.get('name') or y_axis.get('unit') or 'Row')); table.column('#0',width=115,stretch=False)
     for col in cols:
-        vals=m.get('x_axis',{}).get('values',[])
-        table.heading(col,text=f'{vals[int(col)]:g}' if vals else str(int(col)+1)); table.column(col,width=85,stretch=False)
+        vals=axis_values(d.data,m,'x_axis')
+        table.heading(col,text=f'{vals[int(col)]:g}'); table.column(col,width=90,stretch=False,anchor='e')
     table.grid(row=0,column=0,sticky='nsew')
     vs=ttk.Scrollbar(table_frame,orient='vertical',command=table.yview); vs.grid(row=0,column=1,sticky='ns')
     hs=ttk.Scrollbar(table_frame,orient='horizontal',command=table.xview); hs.grid(row=1,column=0,sticky='ew')
     table.configure(yscrollcommand=vs.set,xscrollcommand=hs.set)
     table_frame.rowconfigure(0,weight=1); table_frame.columnconfigure(0,weight=1)
     table.tag_configure('changed',foreground='#ffd18c')
-    canvas=tk.Canvas(host,height=245,background='#101218',highlightthickness=0); canvas.pack(fill='x',pady=(12,5))
+    table.tag_configure('alternate',background='#1d212b')
+    plot_frame=ttk.Frame(split);split.add(plot_frame,weight=2)
+    canvas=tk.Canvas(plot_frame,height=205,background='#101218',highlightthickness=0);canvas.pack(fill='both',expand=True)
+    positioned=[False]
+    def initial_split(event):
+        if not positioned[0] and event.height>100:
+            split.sashpos(0,int(event.height*.62));positioned[0]=True
+    split.bind('<Configure>',initial_split)
     app.editor_table=table; app.editor_canvas=canvas; app.editor_map=m
     app.editor_value_mode=mode; app.editor_graph_mode=graph_mode
     selected_row=[0]
+    selected_cell=[0];inline=[None]
+    selection_label=tk.StringVar(value='Select a cell · Enter or double-click to edit')
     def values(data):
         if mode.get()=='Physical': return map_values(data,m)
         fmt=('<' if m['endian']=='little' else '>')+TYPES[m['type']]; width=struct.calcsize(fmt)
         return [struct.unpack_from(fmt,data,number(m['address'])+i*width)[0] for i in range(m['rows']*m['columns'])]
     def draw_graph():
-        canvas.delete('all'); v=map_values(d.data,m); w=max(canvas.winfo_width(),500); h=245
+        canvas.delete('all'); v=map_values(d.data,m); w=max(canvas.winfo_width(),500)
         if not all(math.isfinite(x) for x in v):
             canvas.create_text(20,20,text='Graph unavailable: nonfinite values',anchor='nw',fill='#f5b66f'); return
         lo,hi=min(v),max(v); span=max(hi-lo,1e-9)
@@ -73,19 +87,20 @@ def render_editor(app,index):
                     q=(z-lo)/span; color=f'#{int(45+q*190):02x}{int(130-q*55):02x}{int(160-q*105):02x}'
                     coords=[v for r,c in [(r1,c1),(r1,c2),(r2,c2),(r2,c1)] for v in point(r,c)]
                     canvas.create_polygon(*coords,fill=color,outline='#343944',width=1)
-            canvas.create_text(14,226,text='Indexed row/column surface · up to 33×33 display samples',anchor='nw',fill='#788397')
+            canvas.create_text(14,184,text='Indexed row/column surface · up to 33×33 display samples',anchor='nw',fill='#788397')
         else:
             row=min(selected_row[0],m['rows']-1); points=v[row*m['columns']:(row+1)*m['columns']]
             if m['columns']==1: points=v
             coords=[]
-            for i,value in enumerate(points): coords.extend((30+i*(w-60)/max(1,len(points)-1),200-(value-lo)/span*145))
+            for i,value in enumerate(points): coords.extend((30+i*(w-60)/max(1,len(points)-1),165-(value-lo)/span*115))
             if len(coords)>2: canvas.create_line(*coords,fill='#ff986b',width=2)
             elif coords: canvas.create_oval(coords[0]-4,coords[1]-4,coords[0]+4,coords[1]+4,fill='#ff986b')
             label='Complete column curve' if m['columns']==1 else f'Row {row+1} · select a table row to compare its curve'
-            canvas.create_text(14,226,text=label,anchor='nw',fill='#788397')
+            canvas.create_text(14,184,text=label,anchor='nw',fill='#788397')
+        canvas.scale('all',0,0,1,max(80,canvas.winfo_height())/205)
     def redraw():
         vals,orig=values(d.data),values(d.original); table.delete(*table.get_children())
-        y=m.get('y_axis',{}).get('values',[])
+        y=axis_values(d.data,m,'y_axis')
         for r in row_order:
             a=r*m['columns']; cells=[]; changed=False
             for i in range(a,a+m['columns']):
@@ -93,24 +108,64 @@ def render_editor(app,index):
                 if original_visible.get(): text+=f' ({orig[i]:g})'
                 elif different: text+=' *'
                 cells.append(text)
-            table.insert('','end',iid=str(r),text=f'{y[r]:g}' if y else str(r+1),values=cells,tags=('changed',) if changed else ())
+            tags=(('alternate',) if r%2 else ())+ (('changed',) if changed else ())
+            table.insert('','end',iid=str(r),text=f'{y[r]:g}',values=cells,tags=tags)
         draw_graph()
+    def cancel_inline():
+        if inline[0] is not None:
+            inline[0].destroy();inline[0]=None
+    def edit_cell(cell=None):
+        cancel_inline()
+        cell=selected_cell[0] if cell is None else cell
+        row,col=divmod(cell,m['columns']);table.see(str(row));table.update_idletasks()
+        box=table.bbox(str(row),str(col))
+        if not box:raise ValueError('Scroll the selected column into view to edit it.')
+        entry=ttk.Entry(table,justify='right');entry.insert(0,f'{values(d.data)[cell]:.12g}');entry.place(x=box[0],y=box[1],width=box[2],height=box[3])
+        inline[0]=entry;entry.focus_set();entry.selection_range(0,'end')
+        def commit(_=None):
+            value=float(entry.get().strip());physical=value if mode.get()=='Physical' else value*m['factor']+m['offset']
+            d.set_map_cell(m,cell,physical);cancel_inline();app.refresh()
+        entry.bind('<Return>',lambda e:app.run(commit));entry.bind('<Escape>',lambda e:cancel_inline())
+        entry.bind('<FocusOut>',lambda e:cancel_inline())
+        app.editor_cell_entry=entry;app.editor_cell_commit=commit
     def edit(event):
-        row=table.identify_row(event.y); col=table.identify_column(event.x)
-        if not row or col=='#0': return
-        cell=int(row)*m['columns']+int(column_order[int(col[1:])-1])
-        value=sd.askfloat('Edit cell',f'New {mode.get().lower()} value:',initialvalue=values(d.data)[cell],parent=app.root)
-        if value is None: return
-        physical=value if mode.get()=='Physical' else value*m['factor']+m['offset']
-        d.set_map_cell(m,cell,physical); app.refresh()
+        row=table.identify_row(event.y);col=table.identify_column(event.x);region=table.identify_region(event.x,event.y)
+        from .table_tools_ui import edit_axis
+        if region=='heading' and col!='#0':edit_axis(app,m,'x_axis',int(column_order[int(col[1:])-1]));return
+        if row and col=='#0':edit_axis(app,m,'y_axis',int(row));return
+        if row and col!='#0':edit_cell(int(row)*m['columns']+int(column_order[int(col[1:])-1]))
+    def pick_cell(event):
+        row=table.identify_row(event.y);col=table.identify_column(event.x)
+        if row and col!='#0':
+            selected_cell[0]=int(row)*m['columns']+int(column_order[int(col[1:])-1])
+            selection_label.set(f'Row {int(row)+1} · Column {selected_cell[0]%m["columns"]+1} · Enter to edit · Ctrl/Shift selects rows')
     def select_row(_):
         selected=table.selection()
-        if selected: selected_row[0]=int(selected[0]); draw_graph()
-    table.bind('<Double-1>',lambda e:app.run(lambda:edit(e))); table.bind('<<TreeviewSelect>>',select_row)
+        if selected:
+            row=int(table.focus() or selected[0]);selected_row[0]=row
+            selected_cell[0]=row*m['columns']+selected_cell[0]%m['columns']
+            draw_graph()
+    table.bind('<Button-1>',pick_cell);table.bind('<Double-1>',lambda e:app.run(lambda:edit(e))); table.bind('<<TreeviewSelect>>',select_row)
+    table.bind('<Return>',lambda e:app.run(edit_cell))
+    from .table_tools_ui import edit_axis,batch_dialog,import_csv,copy_banks,review
+    from .table_tools import operation_preview
+    ttk.Button(tools,text='Edit value',command=lambda:app.run(edit_cell)).pack(side='left',padx=(0,5))
+    app.editor_edit_cell=edit_cell
+    app.editor_axis_buttons={}
+    for key,label in [('x_axis','Edit X axis'),('y_axis','Edit Y axis')]:
+        axis=m.get(key,{})
+        b=ttk.Button(tools,text=label,state='normal' if 'type' in axis and 'address' in axis else 'disabled',command=lambda k=key:app.run(lambda:edit_axis(app,m,k)))
+        b.pack(side='left',padx=(0,5));app.editor_axis_buttons[key]=b
+    menu_button=ttk.Menubutton(tools,text='Table actions ▾');menu_button.pack(side='left')
+    menu=tk.Menu(menu_button,tearoff=False,background='#20242f',foreground='#e6e9f0');menu_button.configure(menu=menu)
+    menu.add_command(label='Set, add, percent, interpolate…',command=lambda:app.run(lambda:batch_dialog(app,m,[int(r) for r in table.selection()])))
+    menu.add_command(label='Restore original map…',command=lambda:app.run(lambda:review(app,operation_preview(d.data,m,'Restore original',original=d.original,definitions=d.definitions))))
+    menu.add_separator();menu.add_command(label='Import CSV…',command=lambda:app.run(lambda:import_csv(app,m)))
+    menu.add_command(label='Copy values to matching banks…',command=lambda:app.run(lambda:copy_banks(app,m)))
     units.bind('<<ComboboxSelected>>',lambda e:redraw()); plot_select.bind('<<ComboboxSelected>>',lambda e:draw_graph())
     original_visible.trace_add('write',lambda *_:redraw()); canvas.bind('<Configure>',lambda e:draw_graph())
-    bar=ttk.Frame(host); bar.pack(fill='x')
-    ttk.Label(bar,text='Double-click a cell to edit · * modified · original bytes preserved',style='Muted.TLabel').pack(side='left')
+    bar=ttk.Frame(host); bar.pack(side='bottom',fill='x',pady=(5,0))
+    ttk.Label(bar,textvariable=selection_label,style='Muted.TLabel').pack(side='left')
     def export_csv():
         p=fd.asksaveasfilename(defaultextension='.csv')
         if p:
@@ -119,7 +174,8 @@ def render_editor(app,index):
                 writer=csv.writer(f); data=map_values(d.data,m)
                 for r in range(m['rows']): writer.writerow(data[r*m['columns']:(r+1)*m['columns']])
     ttk.Button(bar,text='Export CSV',command=lambda:app.run(export_csv)).pack(side='right')
-    ttk.Label(host,text=f'Source: {m["source"]}',style='Muted.TLabel',wraplength=1000).pack(anchor='w',pady=(8,0))
+    ttk.Label(host,text=f'Source: {m["source"]}',style='Muted.TLabel',wraplength=900).pack(side='bottom',anchor='w',pady=(6,0))
+    split.pack(fill='both',expand=True,pady=(8,0))
     redraw()
 
 

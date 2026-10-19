@@ -24,13 +24,13 @@ def build_solutions(app):
 
 def refresh_solutions(app):
     if not app.doc: app.solution_status.set('Open a BIN to inspect support');return
-    state=launch_control_state(app.doc.data)
-    sites=state['sites'];available=sum(s['status']=='available' for s in sites);active=sum(s['status']=='active' for s in sites)
-    app.solution_status.set(f'{state["status"].capitalize()} · {available} original axes · {active} source-pattern active axes' if sites else state.get('reason','No supported structure found in this BIN.'))
+    state=launch_control_state(app.doc.data,app.doc.original)
+    sites=state['sites'];available=sum(s['status']=='available' for s in sites);active=sum(s['status']=='active' for s in sites);custom=sum(s['status']=='custom' for s in sites)
+    app.solution_status.set(f'{state["status"].capitalize()} · {available} original axes · {active} source-pattern axes · {custom} project-customised axes' if sites else state.get('reason','No supported structure found in this BIN.'))
 
 
 def show_preview(app,restore=False):
-    d=app.need();preview=preview_launch_control(d.data,d.original if restore else None)
+    d=app.need();preview=preview_launch_control(d.data,d.original if restore else None,reference=d.original)
     w=tk.Toplevel(app.root);w.title(preview['name']);w.geometry('800x520');w.transient(app.root)
     ttk.Label(w,text=preview['name'],style='Title.TLabel',wraplength=760).pack(anchor='w',padx=18,pady=18)
     ttk.Label(w,text=f'{len(preview["edits"])} bank change(s). Only the listed axis bytes will change.\nApply changes the project in memory; source files remain untouched.',style='Muted.TLabel').pack(anchor='w',padx=18)

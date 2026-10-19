@@ -84,8 +84,8 @@ def discover_heuristic(data):
                         if sum(v!=0 for v in data[a:a+416])<21: continue
                         m=_map(a,16,13,f'Smoke limiter {temp*0.1-273.1:g} °C (selector candidate)','Smoke limitation',0.01,unit='mg/st')
                         m.update({'header_address':pos,'codeblock_base':base,'selector_address':address,'selector_slot':slot,
-                                  'x_axis':{'address':ypos+4,'values':[v*0.1 for v in yvals],'unit':'mg/st'},
-                                  'y_axis':{'address':pos+4,'values':xvals,'unit':'rpm'},
+                                  'x_axis':{'address':ypos+4,'type':'u16','endian':'little','factor':.1,'offset':0,'values':[v*0.1 for v in yvals],'unit':'mg/st'},
+                                  'y_axis':{'address':pos+4,'type':'u16','endian':'little','factor':1,'offset':0,'values':xvals,'unit':'rpm'},
                                   'evidence':f'F9/DA 16x13 axes and bounded C1 selector at 0x{address:X}; nonempty slot {slot}.',
                                   'confidence':0.7})
                         maps[a]=m
@@ -150,8 +150,8 @@ def discover_heuristic(data):
                     m.update(name=f'Unclassified axis table @ {address:06X}',category='Unclassified',factor=1.0,offset=0.0,unit='raw')
                     xf=yf=1; xo=yo=0
             m.update({'header_address':pos,'codeblock_base':base,
-                      'x_axis':{'address':ypos+4,'id':hex(yid),'values':[v*yf+yo for v in yvals]},
-                      'y_axis':{'address':pos+4,'id':hex(xid),'values':[v*xf+xo for v in xvals]},
+                      'x_axis':{'address':ypos+4,'type':'u16','endian':'little','factor':yf,'offset':yo,'id':hex(yid),'values':[v*yf+yo for v in yvals]},
+                      'y_axis':{'address':pos+4,'type':'u16','endian':'little','factor':xf,'offset':xo,'id':hex(xid),'values':[v*xf+xo for v in xvals]},
                       'confidence':0.65 if len(semantics)==1 else 0.35,
                       'evidence':f'Two bounded monotonic axes at 0x{pos:X}, IDs {xid:04X}/{yid:04X}; {nx}x{ny}; metadata naming is heuristic.'})
             maps.setdefault(address,m)

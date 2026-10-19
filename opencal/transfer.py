@@ -42,6 +42,9 @@ def transfer_ori(original,tuned,pack):
     if len(candidates)!=1: raise ValueError('ORI mappack must describe one complete calibration bank.')
     base=candidates[0]; entries=[]; checked=0
     for target in target_bases:
+        from .codeblocks import metadata_id
+        block_id=metadata_id(tuned,target)
+        block_label=str(block_id) if block_id is not None else 'ID unknown'
         if identifiers(original[base-0x4000:base+0xc000])!=identifiers(tuned[target-0x4000:target+0xc000]):
             raise ValueError('Individual bank identification differs from ORI.')
         delta=target-base
@@ -60,8 +63,8 @@ def transfer_ori(original,tuned,pack):
             for key in ('Name','IdName','Fieldvalues.Name'):
                 name=field(entry,key)
                 if name is not None:
-                    name=re.sub(r'\s*\[codeblock \d+\]','',str(name))
-                    _set(entry,key,f'{name} [bank {target:05X}]')
+                    name=re.sub(r'\s*\[(?:codeblock \d+|bank [0-9a-f]+)\]','',str(name),flags=re.I)
+                    _set(entry,key,f'{name} [codeblock {block_label}]')
             entry['Comment']=f'Inherited from matching ORI bank {base:05X}; destination bank {target:05X}. '+str(field(entry,'Comment',''))
             entries.append(entry)
     result={'maps':entries,'opencal_transfer':{'identifiers':expected,'source_bank':base,

@@ -1,4 +1,4 @@
-OpenCal â€” offline binary calibration workbench, version 0.5
+OpenCal â€” offline binary calibration workbench, version 0.6
 Copyright (c) 2026 OpenCal contributors.
 
 This combined distribution is licensed under GNU GPL version 3 only.
@@ -28,3 +28,5 @@ proprietary databases have not been incorporated. User ECU files are not bundled
 Additional 0.3 changes: source-backed selector, curve and scalar passes; checked ORI metadata transfer; reference fingerprints; original workbench and 3D editor.
 
 Launch-control solution port retains GPL source attribution; bank/RPM guards and preview/apply/undo UI added.
+
+Additional 0.6 changes: ROM-axis editing and storage validation, atomic table previews, live axis refresh, virtual hexdump, and metadata-derived codeblock labels. Codeblock metadata convention adapted from retained ZedSuite edc15p/layout.rs.

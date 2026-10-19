@@ -13,7 +13,7 @@ AXIS=struct.pack('<15H',14,*SPEED_STEPS)
 SOURCE='ZedSuite GPL-3.0-only solutions/index.ts and launch_control.rs; bounded OpenCal port'
 
 
-def launch_control_state(data):
+def launch_control_state(data,reference=None):
     bases=standard_bases(data)
     if not bases: return {'status':'unsupported','sites':[],'reason':'Requires a supported standard V4.1 layout.'}
     sites=[]
@@ -24,32 +24,39 @@ def launch_control_state(data):
             candidates[start+match.start()]='available'
         for header in (AXIS,b'\x00\x0e'+AXIS[2:]):
             for match in re.finditer(re.escape(header),data[start:end]): candidates[start+match.start()-2]='active'
+        anchored=set()
+        if reference is not None and len(reference)==len(data) and standard_bases(reference)==bases:
+            for site in launch_control_state(reference)['sites']:
+                sig=site['signature']
+                if site['bank']==base and data[sig+2:sig+4] in (b'\x0e\x00',b'\x00\x0e'):
+                    anchored.add(sig)
+                    candidates.setdefault(sig,'custom')
         for sig,status in sorted(candidates.items()):
             if sig<start or sig+786>end: continue
             rpm=struct.unpack_from('<25H',data,sig+36)
-            if not all(a<=b for a,b in zip(rpm,rpm[1:])) or not 2500<=max(rpm)<=7000 or rpm[0]>2000: continue
+            if sig not in anchored and (not all(a<=b for a,b in zip(rpm,rpm[1:])) or not 2500<=max(rpm)<=7000 or rpm[0]>2000): continue
             sites.append({'signature':sig,'axis_address':sig+2,'map_address':sig+86,'bank':base,'status':status})
     statuses={s['status'] for s in sites}
     state='mixed' if len(statuses)>1 else next(iter(statuses),'not found')
     return {'status':state,'sites':sites,'source':SOURCE,'verification':'Source-backed byte pattern; ECU execution unverified'}
 
 
-def launch_control_maps(data):
+def launch_control_maps(data,reference=None):
     maps=[]
-    for site in launch_control_state(data)['sites']:
-        if site['status']!='active': continue
+    for site in launch_control_state(data,reference)['sites']:
+        if site['status'] not in ('active','custom'): continue
         sig=site['signature']; a=site['map_address']
         maps.append({'id':f'launch-control-{a:x}','name':f'Launch control map [bank {site["bank"]:05X}]',
             'address':a,'rows':14,'columns':25,'type':'u16','endian':'little','factor':.01,'offset':0,
             'unit':'mg/st','category':'Launch control','verification':'candidate','source':SOURCE,'license':'GPL-3.0-only',
-            'x_axis':{'address':sig+36,'values':list(struct.unpack_from('<25H',data,sig+36)),'name':'Engine speed','unit':'rpm'},
-            'y_axis':{'address':sig+4,'values':[v*.15625 for v in SPEED_STEPS],'name':'Vehicle speed','unit':'km/h','display_backwards':True},
+            'x_axis':{'address':sig+36,'type':'u16','endian':'little','factor':1,'offset':0,'values':list(struct.unpack_from('<25H',data,sig+36)),'name':'Engine speed','unit':'rpm'},
+            'y_axis':{'address':sig+4,'type':'u16','endian':'little','factor':.15625,'offset':0,'values':[v*.15625 for v in struct.unpack_from('<14H',data,sig+4)],'name':'Vehicle speed','unit':'km/h','display_backwards':True},
             'evidence':'Exact 14-step speed axis and bounded map/RPM structure; no on-vehicle verification.'})
     return maps
 
 
-def preview_launch_control(data,restore_from=None):
-    state=launch_control_state(data)
+def preview_launch_control(data,restore_from=None,reference=None):
+    state=launch_control_state(data,restore_from if restore_from is not None else reference)
     if not state['sites']: raise ValueError('No supported launch-control structure was found.')
     edits=[]
     if restore_from is not None:

@@ -28,7 +28,35 @@
       "source": "Original synthetic fixture",
       "license": "MIT",
       "minimum": -10,
-      "maximum": 1000
+      "maximum": 1000,
+      "x_axis": {
+        "address": 64,
+        "type": "u16",
+        "endian": "little",
+        "factor": 1,
+        "offset": 0,
+        "values": [
+          10,
+          20,
+          40,
+          80
+        ],
+        "name": "Example X",
+        "unit": "demo X"
+      },
+      "y_axis": {
+        "address": 80,
+        "type": "u16",
+        "endian": "little",
+        "factor": 1,
+        "offset": 0,
+        "values": [
+          1000,
+          2000
+        ],
+        "name": "Example Y",
+        "unit": "demo Y"
+      }
     }
   ]
 }

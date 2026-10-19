@@ -370,20 +370,22 @@ class App:
         d=self.need()
         self.status.set(f'{Path(d.source).name if d.source else "Embedded original"} • {len(d.data):,} bytes • {sum(a != b for a,b in zip(d.original,d.data)):,} changed bytes • Checksums: use Verify under EDC15 tools')
         if hasattr(self,'dtc_tree'): self.dtc_tree.delete(*self.dtc_tree.get_children())
-        self.hex.configure(state='normal'); self.hex.delete('1.0','end')
-        for address in range(self.page,min(self.page+512,len(d.data)),16):
-            self.hex.insert('end',f'{address:08X}  ')
-            for j in range(16):
-                i=address+j
-                if i<len(d.data): self.hex.insert('end',f'{d.data[i]:02X} ', 'changed' if d.data[i]!=d.original[i] else ())
-                else: self.hex.insert('end','   ')
-            self.hex.insert('end',' '+''.join(chr(v) if 32<=v<127 else '.' for v in d.data[address:address+16])+'\n')
-        self.hex.configure(state='disabled')
+        if hasattr(self,'render_hex'):self.render_hex()
         self.maps.delete(*self.maps.get_children())
         for i,m in enumerate(d.definitions['maps']):
             self.maps.insert('','end',iid=str(i),text=m['name'],values=(hex(number(m['address'])),f'{m["rows"]} × {m["columns"]}',m['verification'],m['category']))
         self.profiles.delete(0,'end')
         for name in d.profiles: self.profiles.insert('end',name)
+
+    def render_hex(self):
+        """Compatibility renderer for the original base UI."""
+        d=self.need();self.hex.configure(state='normal');self.hex.delete('1.0','end')
+        for a in range(self.page,min(self.page+512,len(d.data)),16):
+            self.hex.insert('end',f'{a:08X}  ')
+            for i in range(a,min(a+16,len(d.data))):
+                self.hex.insert('end',f'{d.data[i]:02X} ','changed' if d.data[i]!=d.original[i] else ())
+            self.hex.insert('end','\n')
+        self.hex.configure(state='disabled')
 
 
 def main():
