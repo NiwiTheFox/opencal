@@ -1,4 +1,4 @@
-OpenCal â€” offline binary calibration workbench, version 0.4
+OpenCal â€” offline binary calibration workbench, version 0.5
 Copyright (c) 2026 OpenCal contributors.
 
 This combined distribution is licensed under GNU GPL version 3 only.
@@ -26,3 +26,5 @@ mascot or product identity is used. VAG EDC Suite executable code and embedded
 proprietary databases have not been incorporated. User ECU files are not bundled.
 
 Additional 0.3 changes: source-backed selector, curve and scalar passes; checked ORI metadata transfer; reference fingerprints; original workbench and 3D editor.
+
+Launch-control solution port retains GPL source attribution; bank/RPM guards and preview/apply/undo UI added.

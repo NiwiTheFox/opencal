@@ -39,7 +39,12 @@ def _map(address,rows,cols,name,category,factor=1.0,offset=0.0,unit='raw'):
 def discover(data):
     from .catalog import match_profile
     known=match_profile(data)
-    if known is not None: return known
+    if known is not None:
+        from .solutions import launch_control_maps
+        by_address={m['address']:m for m in known['maps']}
+        by_address.update({m['address']:m for m in launch_control_maps(data)})
+        known['maps']=list(by_address.values())
+        return known
     return discover_heuristic(data)
 
 
@@ -163,6 +168,8 @@ def discover_heuristic(data):
             pos+=1
     from .source_sequences import source_maps
     maps.update(source_maps(data,bases))
+    from .solutions import launch_control_maps
+    maps.update({m['address']:m for m in launch_control_maps(data)})
     # Unclassified structures are diagnostics, not a usable mappack. Hide them
     # from the calibration tree rather than presenting a large false map count.
     unclassified=[m for m in maps.values() if m['category']=='Unclassified']

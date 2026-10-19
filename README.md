@@ -1,4 +1,4 @@
-# OpenCal 0.4
+# OpenCal 0.5
 
 Free, open-source ECU calibration workbench for Windows. Open a BIN, explore
 maps, inspect bytes, compare files and keep your edits in a project.

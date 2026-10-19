@@ -22,7 +22,7 @@ class App(BaseApp):
     def __init__(self,root):
         self.root=root; self.doc=None; self.page=0; self.project=None; self.saved_state=None
         self.active_map=None; self._drawing=False; self._filtering=False
-        root.title('OpenCal 0.4 • Calibration workbench'); root.geometry('1440x900'); root.minsize(1080,700)
+        root.title('OpenCal 0.5 • Calibration workbench'); root.geometry('1440x900'); root.minsize(1080,700)
         root.configure(background=BG); root.protocol('WM_DELETE_WINDOW',self.close)
         # A global *Font option overrides even the Brand/Scalar style fonts.
         # Set the named default instead, keeping each visual hierarchy intact.
@@ -68,15 +68,18 @@ class App(BaseApp):
         self.workspace=ttk.Frame(body,padding=(12,0,0,0)); body.add(self.workspace,weight=1)
         self.tabs=ttk.Notebook(self.workspace); self.tabs.pack(fill='both',expand=True)
         self.map_tab=ttk.Frame(self.tabs); self.tabs.add(self.map_tab,text='  Map editor  ')
+        self.solutions_tab=ttk.Frame(self.tabs);self.tabs.add(self.solutions_tab,text='  Solutions  ')
         self.hex_tab=ttk.Frame(self.tabs); self.tabs.add(self.hex_tab,text='  Hexdump  ')
         self.ecu_tab=ttk.Frame(self.tabs); self.tabs.add(self.ecu_tab,text='  ECU tools & DTCs  ')
         self.analysis_tab=ttk.Frame(self.tabs); self.tabs.add(self.analysis_tab,text='  Analysis & compare  ')
         self.profile_tab=ttk.Frame(self.tabs); self.tabs.add(self.profile_tab,text='  Versions  ')
         self.build_map_workspace(); self.build_hex(); self.build_ecu(); self.build_analysis(); self.build_profiles()
+        from .solutions_ui import build_solutions
+        build_solutions(self)
         self.status=tk.StringVar(value='Ready · open a BIN or a codex project to begin')
         footer=ttk.Frame(root,padding=(15,6)); footer.pack(fill='x')
         ttk.Label(footer,textvariable=self.status,style='Muted.TLabel').pack(side='left')
-        ttk.Button(footer,text='0.4 · GPL / About',command=self.about).pack(side='right')
+        ttk.Button(footer,text='0.5 · GPL / About',command=self.about).pack(side='right')
         self.analysis.configure(background=BG,foreground=FG,insertbackground=FG,relief='flat')
         self.profiles.configure(background=PANEL,foreground=FG,selectbackground='#583728',relief='flat')
         self._sidebar_initialised=False
@@ -153,6 +156,8 @@ class App(BaseApp):
         self.hex.configure(state='normal'); self.hex.delete('1.0','end'); self.hex.configure(state='disabled')
         self.dtc_tree.delete(*self.dtc_tree.get_children())
         self.profiles.delete(0,'end'); self.analysis.configure(state='normal'); self.analysis.delete('1.0','end'); self.analysis.configure(state='disabled')
+        from .solutions_ui import refresh_solutions
+        refresh_solutions(self)
 
     def filter_maps(self):
         if self._filtering: return
@@ -230,6 +235,15 @@ class App(BaseApp):
 
     def refresh(self):
         d=self.need()
+        from .solutions import launch_control_maps
+        from .solutions_ui import refresh_solutions
+        # Generated solution definitions must follow current bytes after undo,
+        # restore or raw edits. Never keep an active label based on history alone.
+        active_id=d.definitions['maps'][self.active_map]['id'] if self.active_map is not None and self.active_map<len(d.definitions['maps']) else None
+        d.definitions['maps']=[m for m in d.definitions['maps'] if not m['id'].startswith('launch-control-')]+launch_control_maps(d.data)
+        if active_id is not None:
+            self.active_map=next((i for i,m in enumerate(d.definitions['maps']) if m['id']==active_id),None)
+            if self.active_map is None:self.show_welcome()
         # Reuse the binary/history rendering, but grouped map tree is owned here.
         self._filtering=True
         try: super().refresh()
@@ -244,6 +258,7 @@ class App(BaseApp):
         else: self.detection_label.set(f'Imported mappack · {len(d.definitions["maps"])} definitions · inspect source and software compatibility')
         self.filter_maps()
         self.checksum_badge.set('Checksums · click to verify')
+        refresh_solutions(self)
         if self.active_map is not None and self.active_map<len(d.definitions['maps']): self.render_map(self.active_map)
 
     def view_map(self):
