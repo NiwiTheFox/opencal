@@ -9,3 +9,7 @@ dist/
 exports/
 user-data/
 to use/
+runtime/
+runtime-licenses/
+BUNDLE-MANIFEST.json
+RUNTIME-MANIFEST.json

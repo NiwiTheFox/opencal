@@ -37,3 +37,16 @@ class CodeblockTests(unittest.TestCase):
         if not STOCK.exists() or not V9.exists():self.skipTest('Private copies unavailable')
         self.assertEqual(metadata_id(STOCK.read_bytes(),0x70000),3)
         self.assertEqual([metadata_id(V9.read_bytes(),base) for base in (0x50000,0x60000,0x70000)],[4,5,3])
+
+    def test_edit_refresh_preserves_group_expansion(self):
+        data=bytearray(0x80000);data[0x70001:0x7000c]=SIGNATURE
+        m=definitions()['maps'][0];m['address']=0x70100
+        root=tk.Tk();root.withdraw()
+        try:
+            app=App(root);app.doc=Document(data);app.doc.definitions={'schema':'opencal.definitions','version':1,'maps':[m]};app.refresh()
+            block=app.maps.get_children()[0];category=app.maps.get_children(block)[0]
+            app.maps.item(block,open=False);app.doc.edit(0x70100,b'A');app.refresh()
+            self.assertFalse(app.maps.item(block,'open'))
+            app.maps.item(block,open=True);app.maps.item(category,open=False);app.undo()
+            self.assertTrue(app.maps.item(block,'open'));self.assertFalse(app.maps.item(category,'open'))
+        finally:root.destroy()

@@ -46,8 +46,18 @@ class TransferTests(unittest.TestCase):
         self.assertIsNone(match_profile(changed,[profile]))
 
     def test_auto_detect_uses_correct_reference(self):
-        self.assertEqual(len(discover(self.ori)['maps']),71)
-        self.assertEqual(len(discover(self.tuned)['maps']),213)
+        # Build explicit private test profiles rather than depending on the
+        # developer's learned catalog, which public releases intentionally omit.
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        profiles=[make_profile(self.ori,self.pack,'stock fixture','private test'),
+                  make_profile(self.tuned,transfer_ori(self.ori,self.tuned,self.pack),'tuned fixture','private test')]
+        with tempfile.TemporaryDirectory() as temp:
+            catalog=Path(temp)/'test-catalog.json';catalog.write_text(json.dumps({'profiles':profiles}))
+            with patch('opencal.catalog.CATALOG',catalog):
+                self.assertEqual(len(discover(self.ori)['maps']),71)
+                self.assertEqual(len(discover(self.tuned)['maps']),213)
 
     def test_source_port_matches_fresh_stock_export_without_profile(self):
         expected,_=import_mappack(self.pack,self.ori)

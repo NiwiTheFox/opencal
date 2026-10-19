@@ -14,6 +14,7 @@ from .checksums import inspect as checksum_inspect
 from .edc15 import discover,identity
 from .catalog import CATALOG,make_profile
 from .mappack import decode_json
+from . import __version__
 
 BG='#101218'; PANEL='#181b23'; CARD='#20242f'; FG='#e6e9f0'; MUTED='#969ead'; ACCENT='#fa633b'
 
@@ -22,7 +23,7 @@ class App(BaseApp):
     def __init__(self,root):
         self.root=root; self.doc=None; self.page=0; self.project=None; self.saved_state=None
         self.active_map=None; self._drawing=False; self._filtering=False
-        root.title('OpenCal 0.6 • Calibration workbench'); root.geometry('1440x900'); root.minsize(1080,700)
+        root.title(f'OpenCal {__version__} • Calibration workbench'); root.geometry('1440x900'); root.minsize(1080,700)
         root.configure(background=BG); root.protocol('WM_DELETE_WINDOW',self.close)
         # A global *Font option overrides even the Brand/Scalar style fonts.
         # Set the named default instead, keeping each visual hierarchy intact.
@@ -79,7 +80,7 @@ class App(BaseApp):
         self.status=tk.StringVar(value='Ready · open a BIN or a codex project to begin')
         footer=ttk.Frame(root,padding=(15,6)); footer.pack(fill='x')
         ttk.Label(footer,textvariable=self.status,style='Muted.TLabel').pack(side='left')
-        ttk.Button(footer,text='0.6 · GPL / About',command=self.about).pack(side='right')
+        ttk.Button(footer,text=f'{__version__} · GPL / About',command=self.about).pack(side='right')
         self.analysis.configure(background=BG,foreground=FG,insertbackground=FG,relief='flat')
         self.profiles.configure(background=PANEL,foreground=FG,selectbackground='#583728',relief='flat')
         self._sidebar_initialised=False

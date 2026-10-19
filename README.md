@@ -40,16 +40,19 @@ choose to export, and exports use a new file rather than replacing the input.
 
 ### Windows
 
-1. Extract the OpenCal folder to a location of your choice.
-2. Install **Python 3.11 or newer with Tk** if you do not already have it.
-3. Open **OpenCal.exe** or **Launch.cmd** in the extracted folder.
+1. Download the **Windows ZIP** from the release assets.
+2. Extract the whole folder to a location of your choice.
+3. Open **OpenCal.exe** in the extracted folder.
 4. Choose **Open BIN**, then select a map in the left sidebar.
 5. Double-click a table cell to edit it, then press **Enter** to apply or **Esc**
    to cancel. Use **Undo** to step back.
 
-`OpenCal.exe` is a small launcher that uses your installed Python. A fully bundled
-Windows build is still on the roadmap. You do not need pip packages, a compiler,
-ZedSuite, VAG EDC Suite, or an internet connection to run the app.
+The Windows ZIP includes Python and Tcl/Tk. You do not need to install Python,
+pip packages, a compiler, ZedSuite or VAG EDC Suite. It runs offline and does not
+change your system's Python installation. Keep the `runtime` folder beside the EXE.
+
+The separate **source ZIP** is for contributors and needs Python 3.11+ with Tk.
+Its launcher uses an installed Python when no bundled runtime is present.
 
 To start from a terminal in this folder:
 
@@ -150,8 +153,9 @@ available.
 
 ## Common questions
 
-**Do I need ZedSuite or VAG EDC Suite installed?**  
-No. OpenCal runs on its own with Python and Tk.
+**Do I need Python, ZedSuite or VAG EDC Suite installed?**  
+No. The Windows download includes its own Python/Tk runtime. Only the source
+download needs a separately installed Python.
 
 **What is a mappack?**  
 It is a set of map definitions: where a map lives in the BIN, its size, and how
@@ -172,7 +176,7 @@ want a separate binary containing your changes. Keep your untouched original.
 - Broader map-discovery coverage and more independent reference comparisons.
 - Richer cell selection, visualisation and calibration review.
 - More checksum providers, enabled only after suitable validation.
-- Better Windows packaging and continued UI improvements.
+- Continued Windows packaging and UI improvements.
 - Further software-specific research into SVRL and ECU multimap switching.
 
 ## Contributing
@@ -196,5 +200,9 @@ Tests that need private development files skip when those files are unavailable.
 OpenCal is licensed under **GPL-3.0-only**. You may use, study, modify and
 redistribute it under that license. See [LICENSE](LICENSE) and [NOTICE](NOTICE)
 for the full terms and third-party attribution.
+
+Windows bundles also retain the Python, Tcl/Tk and component license notices in
+`runtime-licenses`. Runtime versions and packaging changes are recorded in
+`RUNTIME-MANIFEST.json`.
 
 OpenCal is independent and is not endorsed by ZedSuite, Bosch, or Volkswagen Group.

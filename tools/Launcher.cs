@@ -10,8 +10,9 @@ class OpenCalLauncher {
     [STAThread]
     static void Main() {
         string folder=AppDomain.CurrentDomain.BaseDirectory;
+        string bundled=Path.Combine(folder,"runtime","pythonw.exe");
         string configured=Environment.GetEnvironmentVariable("OPENCAL_PYTHON");
-        string python=File.Exists(configured) ? configured : null;
+        string python=File.Exists(bundled) ? bundled : (File.Exists(configured) ? configured : null);
         // Read installed Python locations; never install anything or invoke a
         // shell, Store alias, terminal command or downloaded runtime.
         if (python==null) {
@@ -41,6 +42,13 @@ class OpenCalLauncher {
         try {
             var info=new ProcessStartInfo(python,"-m opencal");
             info.WorkingDirectory=folder; info.UseShellExecute=false; info.CreateNoWindow=true;
+            if (python==bundled) {
+                string tcl=Path.Combine(folder,"runtime","tcl");
+                foreach (string directory in Directory.GetDirectories(tcl)) {
+                    if (File.Exists(Path.Combine(directory,"init.tcl"))) info.EnvironmentVariables["TCL_LIBRARY"]=directory;
+                    if (File.Exists(Path.Combine(directory,"tk.tcl"))) info.EnvironmentVariables["TK_LIBRARY"]=directory;
+                }
+            }
             Process.Start(info);
         } catch (Exception error) {
             MessageBox.Show("OpenCal could not start: "+error.Message,"OpenCal",MessageBoxButtons.OK,MessageBoxIcon.Error);

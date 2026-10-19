@@ -1,4 +1,18 @@
-# OpenCal 0.6.0 — 19 October 2026
+# OpenCal 0.6.1 — 19 October 2026
+
+## New in this patch
+
+The Windows ZIP includes its own 64-bit CPython and Tcl/Tk runtime. Extract the
+whole folder and launch OpenCal.exe. No Python installation, pip packages or
+internet connection is required to run it. The source ZIP stays separate.
+Runtime/component license notices and a runtime version manifest are included.
+The build checks that the interpreter and Tcl/Tk libraries load from inside the
+bundle while external Python environment paths are deliberately invalid.
+
+This patch also preserves expanded/collapsed codeblock and category groups after
+edits and undo. The 0.6.0 sidebar reset them during refresh.
+
+## Included 0.6 features
 
 This update addresses the reported map-editing, codeblock-label and hexdump problems.
 
@@ -23,7 +37,7 @@ This update addresses the reported map-editing, codeblock-label and hexdump prob
 
 ## Validation
 
-79 unit/integration/widget tests pass on the development Python 3.13 and launcher Python 3.14 runs. The
+81 tests pass under the bundled Windows interpreter, with the GUI smoke workflow and private ECU-copy checks also passing. The underlying 0.6 model passed on Python 3.13 and 3.14. The
 copied supported corpus passes 14,373 axis edit/undo cases and 9,660 cell
 edit/undo cases across 4,073 map grids in 31 unique binaries. All tested copied
 BINs remain byte-for-byte unchanged on disk. The GUI regression rendered all
@@ -50,8 +64,10 @@ were undone exactly. These are software checks, not vehicle tests.
   Codeblock groups and project snapshots do not establish switchable ECU maps.
 - Checksum correction covers the enabled standard V4.1 / 2002 layout only.
   A matched checksum does not validate engine operation or flashing suitability.
-- Windows builds use an installed Python/Tk runtime; a bundled runtime is not
-  included. GitHub's public tests skip private-fixture checks.
+- The DTC list clears after unrelated edits or undo; use Read DTC records again.
+- The portable ZIP is 64-bit Windows only; keep all extracted files together.
+  Isolation/startup is tested here; a clean Windows virtual machine was not tested.
+  The source ZIP still requires Python/Tk. Public tests skip private fixtures.
 
 See [CHANGELOG.md](../CHANGELOG.md) for earlier versions and
 [SOURCE-REVIEW.md](SOURCE-REVIEW.md) for the additional public source research.

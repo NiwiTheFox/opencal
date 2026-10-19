@@ -371,9 +371,10 @@ class App:
         self.status.set(f'{Path(d.source).name if d.source else "Embedded original"} • {len(d.data):,} bytes • {sum(a != b for a,b in zip(d.original,d.data)):,} changed bytes • Checksums: use Verify under EDC15 tools')
         if hasattr(self,'dtc_tree'): self.dtc_tree.delete(*self.dtc_tree.get_children())
         if hasattr(self,'render_hex'):self.render_hex()
-        self.maps.delete(*self.maps.get_children())
-        for i,m in enumerate(d.definitions['maps']):
-            self.maps.insert('','end',iid=str(i),text=m['name'],values=(hex(number(m['address'])),f'{m["rows"]} × {m["columns"]}',m['verification'],m['category']))
+        if not getattr(self,'_filtering',False):
+            self.maps.delete(*self.maps.get_children())
+            for i,m in enumerate(d.definitions['maps']):
+                self.maps.insert('','end',iid=str(i),text=m['name'],values=(hex(number(m['address'])),f'{m["rows"]} × {m["columns"]}',m['verification'],m['category']))
         self.profiles.delete(0,'end')
         for name in d.profiles: self.profiles.insert('end',name)
 

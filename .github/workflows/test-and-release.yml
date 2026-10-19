@@ -49,11 +49,30 @@ jobs:
         run: |
           $releaseVersion = $env:RELEASE_TAG.TrimStart('v')
           python tools/package_release.py --version $releaseVersion --output "dist/OpenCal-$releaseVersion-source.zip"
-      - name: Publish tested preview release
+      - name: Bundle Python and Tcl/Tk
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $releaseVersion = $env:RELEASE_TAG.TrimStart('v')
+          python -m tools.build_portable --version $releaseVersion --directory "dist/OpenCal-$releaseVersion-Windows" --output "dist/OpenCal-$releaseVersion-Windows.zip"
+      - name: Test the bundled runtime and app
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $releaseVersion = $env:RELEASE_TAG.TrimStart('v')
+          Push-Location "dist/OpenCal-$releaseVersion-Windows"
+          ./runtime/python.exe -m unittest discover -s tests -v
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled runtime tests failed.' }
+          ./runtime/python.exe -m tests.gui_smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled GUI smoke failed.' }
+          Pop-Location
+      - name: Publish tested source and portable downloads
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           $releaseVersion = $env:RELEASE_TAG.TrimStart('v')
-          gh release create $env:RELEASE_TAG "dist/OpenCal-$releaseVersion-source.zip" "dist/OpenCal-$releaseVersion-source.zip.sha256" --title "OpenCal $releaseVersion" --notes-file docs/RELEASE-NOTES.md --prerelease --verify-tag
+          gh release create $env:RELEASE_TAG "dist/OpenCal-$releaseVersion-source.zip" "dist/OpenCal-$releaseVersion-source.zip.sha256" "dist/OpenCal-$releaseVersion-Windows.zip" "dist/OpenCal-$releaseVersion-Windows.zip.sha256" --title "OpenCal $releaseVersion" --notes-file docs/RELEASE-NOTES.md --prerelease --verify-tag

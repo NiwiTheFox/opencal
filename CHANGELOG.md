@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1 — 2026-10-19
+
+- Added a portable Windows download containing Python and Tcl/Tk. Extract the
+  folder and run OpenCal.exe; no Python installation is needed.
+- Added an isolated runtime path, runtime manifest, retained component licenses,
+  and bundled-runtime checks before release publication.
+- Fixed map groups losing their expanded/collapsed state after an edit or undo.
+
+Known issues: keep the entire extracted folder together. The portable build is
+64-bit Windows only. Remaining editing/detection limitations from 0.6 apply.
+
 ## 0.6.0 — 2026-10-19
 
 - Added ROM X/Y axis editing with before/after previews and shared-storage details.
@@ -19,6 +30,7 @@
 Known issues: rectangular cell selection/paste is not implemented; legacy axes
 without recoverable encoding are read-only; 3D uses indexed spacing. Detection
 and ECU execution limits are detailed in [release notes](docs/RELEASE-NOTES.md).
+The sidebar also resets expanded groups after edits/undo in 0.6.0; fixed in 0.6.1.
 
 ## 0.5.0 — 2026-10-18
 
