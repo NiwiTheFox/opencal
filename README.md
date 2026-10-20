@@ -1,4 +1,4 @@
-# OpenCal
+# OpenCal 1.0.0
 
 **Explore ECU maps, understand your changes, and keep your original file safe.**
 
@@ -77,7 +77,8 @@ let you learn the workflow without using vehicle firmware.
 | ECU tools & DTCs | Supported identification, checksum, and fault-code tools |
 | Analysis & compare | Differences between binaries |
 | Versions | Named snapshots of your calibration work |
-| Solutions | Preview and apply the supported launch-control change |
+| Solutions | Preview supported launch-control and EGR changes |
+| C166 / C167 header button | Mapped disassembly, source editing and guarded assembly previews |
 
 In the map editor, **Physical** shows converted values with units, while **Raw**
 shows the numbers stored in the file. Turn on **Show original** to compare your
@@ -227,4 +228,6 @@ Under **Solutions**, choose **Preview disable EGR**. The initial supported profi
 
 The target strategy is source-backed and tested at byte level; vehicle behaviour remains unverified. Other software is refused. **Restore loaded original** returns to the exact input file, which may already contain modifications.
 
-Coverage is feature-specific. See [EDC15 support](docs/SUPPORT.md) and [source audit](docs/AUDIT-0.9.1.md). C166 tools are planned for 1.0.0; new feature versions follow 1.x.0 and quick fixes 1.0.x.
+Coverage is feature-specific. See [EDC15 support](docs/SUPPORT.md) and [source audit](docs/AUDIT-0.9.1.md). C166 tools are bundled in 1.0.0; new feature versions follow 1.x.0 and quick fixes 1.0.x.
+
+The bundled [C166/C167 code workspace](docs/C166-WORKSPACE.md) includes AS and its exact corresponding source/license materials. No Ghidra or IDA installation is required.

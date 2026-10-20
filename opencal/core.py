@@ -202,6 +202,7 @@ class Document:
         self.definitions = {'schema': 'opencal.definitions', 'version': 1, 'maps': [], 'signatures': []}
         self.profiles = {}
         self.dtc_reference = None
+        self.code_workspace = {}
         self.revision = 0
         self._listeners = set()
 
@@ -283,6 +284,8 @@ class Document:
                    'profiles': {k: base64.b64encode(v).decode() for k, v in self.profiles.items()}}
         if self.dtc_reference is not None:
             payload['dtc_reference']={'data':base64.b64encode(self.dtc_reference).decode(),'sha256':digest(self.dtc_reference)}
+        from .c166_tools import validate_state
+        payload['code_workspace']=validate_state(self.code_workspace,len(self.data))
         atomic_json(p, payload)
 
     @classmethod
@@ -341,6 +344,8 @@ class Document:
             from .dtc import reference_records
             reference_records(modified,raw)
             doc.dtc_reference=raw
+        from .c166_tools import validate_state
+        doc.code_workspace=validate_state(obj.get('code_workspace',{}),len(original))
         refresh_axes(doc.data,doc.definitions)
         return doc
 

@@ -1,3 +1,7 @@
+# 1.0.0
+
+Bundled C166/C167 mapped disassembly and source workspace, AS assembly previews and guarded bounded patches, saved source/notes/mapping and shared Undo/Redo. See docs/C166-WORKSPACE.md.
+
 # 0.9.1
 
 Expanded EDC15 layouts, compact checksums and shared fault-path DTCs, early map classification, broader guarded EGR previews, correctness audit and regression fixes. See docs/RELEASE-NOTES.md and docs/SUPPORT.md.

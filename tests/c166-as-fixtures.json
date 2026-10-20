@@ -1,0 +1,484 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "project": "flamewing/asl-releases",
+    "commit": "592c5fa57b874266bfb625aedaa5197fcd09cec1",
+    "release": "snapshot-v1.4.2.20261014-run38518630251",
+    "engine": "AS 1.42 Beta build 313 official Windows x86_64 release",
+    "note": "All cases assembled from synthetic source. bytes_hex includes setup instructions where present; instruction_offset locates the instruction under test. Expected operands are normalized for a decoder and may differ from AS source address notation."
+  },
+  "vectors": [
+    {
+      "id": "nop",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "nop",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "CC 00",
+      "expected_mnemonic": "nop",
+      "expected_operands": "",
+      "instruction_offset": 0
+    },
+    {
+      "id": "mov_immediate",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "mov r3,#01234h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "E6 F3 34 12",
+      "expected_mnemonic": "mov",
+      "expected_operands": "r3,#0x1234",
+      "instruction_offset": 0
+    },
+    {
+      "id": "movb_immediate",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "movb rl1,#056h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "E7 F2 56 00",
+      "expected_mnemonic": "movb",
+      "expected_operands": "rl1,#0x56",
+      "instruction_offset": 0
+    },
+    {
+      "id": "movbs_byte_register",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "movbs r1,rl2",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D0 41",
+      "expected_mnemonic": "movbs",
+      "expected_operands": "r1,rl2",
+      "instruction_offset": 0
+    },
+    {
+      "id": "exts_count1",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "exts #8,#1",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D7 00 08 00",
+      "expected_mnemonic": "exts",
+      "expected_operands": "#8,#1",
+      "instruction_offset": 0
+    },
+    {
+      "id": "exts_count4",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "exts #8,#4",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D7 30 08 00",
+      "expected_mnemonic": "exts",
+      "expected_operands": "#8,#4",
+      "instruction_offset": 0
+    },
+    {
+      "id": "exts_register",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "exts r1,#3",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "DC 21",
+      "expected_mnemonic": "exts",
+      "expected_operands": "r1,#3",
+      "instruction_offset": 0
+    },
+    {
+      "id": "extsr_immediate",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "extsr #8,#2",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D7 90 08 00",
+      "expected_mnemonic": "extsr",
+      "expected_operands": "#8,#2",
+      "instruction_offset": 0
+    },
+    {
+      "id": "extp_count1",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "extp #020h,#1",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D7 40 20 00",
+      "expected_mnemonic": "extp",
+      "expected_operands": "#0x20,#1",
+      "instruction_offset": 0
+    },
+    {
+      "id": "extp_max_page",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "extp #03ffh,#4",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D7 70 FF 03",
+      "expected_mnemonic": "extp",
+      "expected_operands": "#0x3ff,#4",
+      "instruction_offset": 0
+    },
+    {
+      "id": "extp_register",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "extp r2,#2",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "DC 52",
+      "expected_mnemonic": "extp",
+      "expected_operands": "r2,#2",
+      "instruction_offset": 0
+    },
+    {
+      "id": "extpr_immediate",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "extpr #020h,#3",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D7 E0 20 00",
+      "expected_mnemonic": "extpr",
+      "expected_operands": "#0x20,#3",
+      "instruction_offset": 0
+    },
+    {
+      "id": "extr_count1",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "extr #1",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D1 80",
+      "expected_mnemonic": "extr",
+      "expected_operands": "#1",
+      "instruction_offset": 0
+    },
+    {
+      "id": "atomic_count4",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "atomic #4",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D1 30",
+      "expected_mnemonic": "atomic",
+      "expected_operands": "#4",
+      "instruction_offset": 0
+    },
+    {
+      "id": "trap7",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "trap #7",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "9B 0E",
+      "expected_mnemonic": "trap",
+      "expected_operands": "#7",
+      "instruction_offset": 0
+    },
+    {
+      "id": "trap127",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "trap #127",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "9B FE",
+      "expected_mnemonic": "trap",
+      "expected_operands": "#127",
+      "instruction_offset": 0
+    },
+    {
+      "id": "bfldl_mask_data",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "bfldl 0ff00h,#0c3h,#03ch",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "0A 80 C3 3C",
+      "expected_mnemonic": "bfldl",
+      "expected_operands": "0xff00,#0xc3,#0x3c",
+      "instruction_offset": 0
+    },
+    {
+      "id": "bfldh_mask_data",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "bfldh 0fd02h,#03ch,#0c3h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "1A 01 C3 3C",
+      "expected_mnemonic": "bfldh",
+      "expected_operands": "0xfd02,#0x3c,#0xc3",
+      "instruction_offset": 0
+    },
+    {
+      "id": "bset_ram",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "bset 0fd00h.0",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "0F 00",
+      "expected_mnemonic": "bset",
+      "expected_operands": "0xfd00.0",
+      "instruction_offset": 0
+    },
+    {
+      "id": "bset_sfr",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "bset 0ff00h.0",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "0F 80",
+      "expected_mnemonic": "bset",
+      "expected_operands": "0xff00.0",
+      "instruction_offset": 0
+    },
+    {
+      "id": "bset_gpr",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "bset r0.0",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "0F F0",
+      "expected_mnemonic": "bset",
+      "expected_operands": "r0.0",
+      "instruction_offset": 0
+    },
+    {
+      "id": "jmpa_csp",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "jmpa z,080020h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "EA 20 20 00",
+      "expected_mnemonic": "jmpa",
+      "expected_operands": "z,0x0020",
+      "instruction_offset": 0,
+      "expected_physical_branch_target": 524320
+    },
+    {
+      "id": "jmps",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "jmps 8,01234h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "FA 08 34 12",
+      "expected_mnemonic": "jmps",
+      "expected_operands": "8,0x1234",
+      "instruction_offset": 0
+    },
+    {
+      "id": "jmpr_min",
+      "cpu": "80c167",
+      "origin": 524544,
+      "setup": [],
+      "source": "jmpr uc,080002h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "0D 80",
+      "expected_mnemonic": "jmpr",
+      "expected_operands": "uc,0x80002",
+      "instruction_offset": 0
+    },
+    {
+      "id": "jmpr_max",
+      "cpu": "80c167",
+      "origin": 524544,
+      "setup": [],
+      "source": "jmpr nz,080200h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "3D 7F",
+      "expected_mnemonic": "jmpr",
+      "expected_operands": "nz,0x80200",
+      "instruction_offset": 0
+    },
+    {
+      "id": "jmpr_self",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "jmpr uc,080000h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "0D FF",
+      "expected_mnemonic": "jmpr",
+      "expected_operands": "uc,0x80000",
+      "instruction_offset": 0
+    },
+    {
+      "id": "dpp0_resolve",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [
+        "assume DPP0:020h,DPP1:1,DPP2:2,DPP3:3"
+      ],
+      "source": "mov r4,080100h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "F2 F4 00 01",
+      "expected_mnemonic": "mov",
+      "expected_operands": "r4,0x0100",
+      "instruction_offset": 0,
+      "expected_physical_data_address": 524544
+    },
+    {
+      "id": "exts_resolve",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [
+        "exts #8,#1"
+      ],
+      "source": "mov r4,080100h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D7 00 08 00 F2 F4 00 01",
+      "expected_mnemonic": "mov",
+      "expected_operands": "r4,0x0100",
+      "instruction_offset": 4,
+      "expected_physical_data_address": 524544
+    },
+    {
+      "id": "extp_resolve",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [
+        "extp #020h,#1"
+      ],
+      "source": "mov r5,080102h",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "bytes_hex": "D7 40 20 00 F2 F5 02 01",
+      "expected_mnemonic": "mov",
+      "expected_operands": "r5,0x0102",
+      "instruction_offset": 4,
+      "expected_physical_data_address": 524546
+    },
+    {
+      "id": "jmpr_too_negative",
+      "cpu": "80c167",
+      "origin": 524544,
+      "setup": [],
+      "source": "jmpr uc,080000h",
+      "expected_valid": false,
+      "assembler_exit": 2,
+      "diagnostics": "jmpr_too_negative.asm:3 #1370: jump distance too big"
+    },
+    {
+      "id": "jmpr_too_positive",
+      "cpu": "80c167",
+      "origin": 524544,
+      "setup": [],
+      "source": "jmpr uc,080202h",
+      "expected_valid": false,
+      "assembler_exit": 2,
+      "diagnostics": "jmpr_too_positive.asm:3 #1370: jump distance too big"
+    },
+    {
+      "id": "jmpr_odd",
+      "cpu": "80c167",
+      "origin": 524544,
+      "setup": [],
+      "source": "jmpr uc,080101h",
+      "expected_valid": false,
+      "assembler_exit": 2,
+      "diagnostics": "jmpr_odd.asm:3 #1375: jump target or displacement is not properly aligned"
+    },
+    {
+      "id": "extp_page_overflow_truncates",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "extp #0400h,#1",
+      "expected_valid": true,
+      "assembler_exit": 0,
+      "caveat": "AS accepts this source but truncates 0x400 to page zero. expected_valid means assembler acceptance; OpenCal should reject the source operand before assembly.",
+      "bytes_hex": "D7 40 00 00",
+      "expected_mnemonic": "extp",
+      "expected_operands": "#0,#1",
+      "instruction_offset": 0
+    },
+    {
+      "id": "exts_count_zero",
+      "cpu": "80c167",
+      "origin": 524288,
+      "setup": [],
+      "source": "exts #8,#0",
+      "expected_valid": false,
+      "assembler_exit": 2,
+      "diagnostics": "exts_count_zero.asm:3 #1315: range underflow"
+    }
+  ],
+  "decoder_rejections": [
+    {
+      "bytes_hex": "CC 01",
+      "reason": "Not the fixed NOP encoding CC 00"
+    },
+    {
+      "bytes_hex": "D7 41 20 00",
+      "reason": "EXTP immediate requires fixed low nibble zero"
+    },
+    {
+      "bytes_hex": "D7 40 20 FF",
+      "reason": "EXTP immediate page field has only 10 bits"
+    },
+    {
+      "bytes_hex": "E6",
+      "reason": "Truncated four-byte opcode"
+    },
+    {
+      "bytes_hex": "CC",
+      "reason": "Truncated two-byte opcode"
+    }
+  ],
+  "manual_only_vectors": [
+    {
+      "origin": 589822,
+      "bytes_hex": "0D 01",
+      "expected_mnemonic": "jmpr",
+      "expected_physical_branch_target": 524290,
+      "reason": "IP wraps within CSP; do not use unbounded flat address addition. This boundary case is derived from manual, not an AS-assembled oracle case."
+    }
+  ]
+}

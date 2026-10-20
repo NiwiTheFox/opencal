@@ -61,3 +61,7 @@ in place. Project saves use a same-directory temporary file plus atomic replace.
 Projects may be overwritten after the normal save dialog; keep external backups.
 BIN and sidecar creation cannot be one filesystem transaction; a process/power
 failure could leave an incomplete pair. Check hashes after unexpected interruption.
+
+## Optional code workspace metadata (1.0.0)
+
+Project v1 may contain `code_workspace`: empty or version 1 with CPU (`80c166`, `80c167`, `80c167cs`), `segments` (file/cpu/size integer fields), source text, and label/comment dictionaries keyed by decimal file offsets. Origins must be aligned; file/CPU ranges are validated and nonoverlapping. Metadata affects project dirty state. It does not turn annotations or assembly text into executable Python.

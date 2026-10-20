@@ -1,3 +1,5 @@
+Implemented 1.0.0: bundled disassembly/source workspace and guarded AS previews. Remaining: broader independent decoder validation, richer analysis, expanded ECU support and separately validated switching logic.
+
 Version policy updated 20 October 2026: 0.9.x maintenance, bundled C166 tools in 1.0.0, subsequent features 1.x.0 and quick fixes 1.0.x.
 
 # OpenCal update roadmap

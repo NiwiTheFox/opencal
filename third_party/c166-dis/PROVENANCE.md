@@ -1,0 +1,3 @@
+# C166 decoder provenance
+
+GPL-3.0-only. Original Hajo Noerenberg, copyright 2000, c166-dis revision 31b605362ac55b2710b8c87a29e83ba73b18899b. Python port by Kristof (krstoff.com), revision 35d4488ee6b35d246dfc0dc87e0667b385f9d43e. Original sources and tables retained here. OpenCal modifies the decoder: no IDA dependency, AST whitelist interpreter instead of eval, full pattern matching, strict buffer/range bounds, fixed extension/bitfield/trap handling, segmented branch targets and explicit unknowns. Those fixes are regression-tested against the separately assembled synthetic vectors. Table coverage is not a claim of complete validity for every C16x variant.

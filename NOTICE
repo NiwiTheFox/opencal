@@ -1,4 +1,4 @@
-OpenCal â€” offline binary calibration workbench, version 0.9.1
+OpenCal â€” offline binary calibration workbench, version 1.0.0
 Copyright (c) 2026 OpenCal contributors.
 
 This combined distribution is licensed under GNU GPL version 3 only.
@@ -40,3 +40,5 @@ Additional 0.8 original OpenCal work: shared-document notifications, checked com
 Additional 0.9 changes: bounded EGR request-map strategy adapted from GPL VAGEDCSuite contributors, fork skaldamramra/VAGEDCSuite revision 9689a8527f55659fa0e51cede724f4c9fb57ace4. Original EDC15PTuner.cs, Tools.cs, GPLv3 license and hashes retained in third_party/vagedcsuite-gpl. OpenCal adds software/structure guards, explicit EGR diagnostic selection, previews and reversible application. No vehicle-execution validation is claimed.
 
 0.9.1: additional GPL ZedSuite layout/early/fault-path ports; VAGEDCSuite TDI41 arithmetic and independent synthetic C# vectors. Original sources and archive provenance retained in third_party.
+
+1.0.0: GPL C166 tables and Python-port attribution retained in third_party/c166-dis (Hajo Noerenberg, Kristof). OpenCal uses a bounded AST interpreter and corrected decoding. Official AS binaries and corresponding source/build/license information are retained in tools/c166-as and third_party/asl, selecting GPL-3.0-only under their dual-license notices.

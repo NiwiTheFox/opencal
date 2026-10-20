@@ -1,19 +1,25 @@
-# OpenCal 0.9.1 — EDC15 coverage and correctness audit
+# OpenCal 1.0.0 — Bundled C166/C167 workspace
 
-Development preview. Extract the complete Windows ZIP and run OpenCal.exe. Python and Tcl/Tk are bundled.
+Development preview. Extract the complete Windows ZIP and run OpenCal.exe. Python, Tcl/Tk, the decoder and AS assembler tools are included; no separate installation is required.
 
 ## Changes
 
-- Recognise standard, compact and early EDC15 layouts with bounded codeblocks and candidate identification; no invented P/P+/P++ completeness claim.
-- Add compact-layout maps/axis editing and grouping, early/compact shape/value classification, TDI41v2 checksum verification/correction, and shared fault-path DTC disable/exact restore.
-- Expand EGR request-map previews beyond the FJ-only profile when bounded axis shapes, values, identities, diagnostics and all-bank topology agree.
-- Reject incomplete/overlapping classic DTC tables, invalid smoke selectors and partial checksum rounds; preserve map-browser keyboard focus and scroll.
-- Retain existing map comparisons, project persistence, all-bank controls and reversible editing. Mouse disclosure behaviour is unchanged.
+- Add a far-right **C166 / C167** launcher opening a separate mapped disassembly and source workspace.
+- Display file/CPU addresses, raw bytes, instructions, direct branches, labels and comments. Add range navigation, search, branch follow/back and current-range references.
+- Bundle a hardened GPL decoder and official pinned AS assembler/converter with corresponding source, licenses and build instructions. Fix MOVBS/MOVBZ operand types, extension counts/pages, bit addresses, bitfield order, TRAP, fixed-pattern validation, range truncation and segmented relative targets.
+- Assemble source to a checked contiguous output preview, then apply a bounded overwrite with project/byte/hash/source/mapping guards and one shared Undo operation. Main views update live. Separate checksum correction and BIN export are retained.
+- Save source, CPU, segments and notes inside projects; older projects remain compatible. Keep all 0.9.1 expanded EDC15 layout/checksum/map/DTC features.
 
 ## Validation
 
-256 synthetic arithmetic vectors match independently compiled supplied VAGEDCSuite C# routines, alongside the existing TypeScript golden vectors. Added regressions cover complete compact layouts, shared fault-path effects, exact restoration, malformed padding, early map classification, structural EGR relocation and preservation/Undo. Local corpus: 180 copied files, 100 unique; 97 recognised map layouts, 96 supported checksum/DTC layouts. See AUDIT-0.9.1.md and SUPPORT.md.
+133 source tests and GUI smoke passed (two environment/private-only checks skipped). C166 tests cover independent encoding/operand fixtures, 34 assembly probes including expected rejection cases, all 65536 first-two-byte combinations for robustness, source restrictions, exact object address coverage, bounds/stale-preview guards, Undo/Redo, project persistence and minimum-window controls. A separate 100-image copied corpus check decoded 139041 rows and applied/undid bounded synthetic NOP patches entirely in memory. No firmware copies were changed on disk. Bundled/runtime and published-download checks are also performed during release.
 
-## Known limitations
+## Known issues and limits
 
-Support is feature/layout-specific, not complete for all EDC15P/P+/P++ software. Early checksums/DTCs, compact ORI relocation, compact launch-control and compact EGR automation remain unsupported. Correction requires a valid matching original checksum baseline. Detection names are candidates; vehicle execution is unverified. Matching checksums do not make a tune ready to flash. Windows x64 requires the whole extracted folder and has not been checked in a clean VM. C166 tools arrive in 1.0.0.
+- ECU execution and map switching are unverified. Do not infer runnable code from linear decoding. CPU segments are explicit user assumptions; initial origin is zero.
+- DPP/EXT/CP-dependent physical data references and indirect control flow are unresolved. Some C167CS/other C16x forms remain unknown. A robustness sweep does not prove all decoder outputs correct.
+- Assembly supports restricted source fragments rather than whole projects, includes/macros, relocation or insertion. DB/DW accept literal values only. Patches are aligned, bounded overwrites and require a mapped CPU segment.
+- EDC15 support remains feature/layout-specific; complete P/P+/P++ coverage is not claimed. Early checksums/DTCs, compact ORI relocation and some solutions remain unavailable. See SUPPORT.md.
+- Windows x64 requires the complete folder. No clean-VM or physical ECU test is claimed. Native visual inspection hit an app-approval timeout; automated widget and layout checks passed.
+
+See C166-WORKSPACE.md for operation and source/license provenance. New feature releases follow 1.x.0; quick fixes follow 1.0.x (and the corresponding patch series for later feature releases).

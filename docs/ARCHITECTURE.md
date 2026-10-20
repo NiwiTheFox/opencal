@@ -62,3 +62,7 @@ For historical context, the original 0.1 application code and synthetic assets u
 MIT. The 0.2 combined application uses GPL-3.0-only. No runtime is bundled, so
 retain runtime licenses if building a frozen distribution later.
 
+
+## C166 boundary (1.0.0)
+
+`c166.py` decodes bytes without a GUI or reference-app runtime. `c166_tools.py` validates memory mapping, restricted source, bundled tool hashes, AS object coverage and patch previews; it also validates saved code metadata. `c166_ui.py` owns the separate Tk window. The shared Document remains the only byte-edit/history authority. Source/mapping/notes persist as optional validated project metadata; old project v1 remains readable.

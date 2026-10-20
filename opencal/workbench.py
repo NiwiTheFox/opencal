@@ -32,6 +32,7 @@ class App(BaseApp):
         header=ttk.Frame(root,padding=(20,12)); header.pack(fill='x')
         ttk.Label(header,text='OpenCal',style='Brand.TLabel').pack(side='left')
         ttk.Label(header,text='   /   Offline calibration workbench',style='Muted.TLabel').pack(side='left')
+        ttk.Button(header,text='C166 / C167',command=lambda:self.run(self.open_code_workspace)).pack(side='right',padx=(14,0))
         for label,fn in [('Close project',self.close_project),('Redo',self.redo),('Undo',self.undo)]:
             ttk.Button(header,text=label,command=lambda f=fn:self.run(f)).pack(side='right',padx=4)
         body=ttk.Panedwindow(root,orient='horizontal'); body.pack(fill='both',expand=True,padx=12,pady=(0,6))
@@ -85,6 +86,10 @@ class App(BaseApp):
         self.profiles.configure(background=PANEL,foreground=FG,selectbackground='#583728',relief='flat')
         self._sidebar_initialised=False
         body.bind('<Configure>',self.initial_sidebar_width,add='+')
+
+    def open_code_workspace(self):
+        from .c166_ui import open_workspace
+        return open_workspace(self)
 
     def initial_sidebar_width(self,event):
         if not self._sidebar_initialised and event.width>=600:
@@ -162,6 +167,8 @@ class App(BaseApp):
 
     def close(self):
         if self.can_leave():
+            code=getattr(self,'code_workspace',None)
+            if code and not code.closed:code.close()
             for session in list(getattr(self,'comparisons',[])):session.close()
             self.root.destroy()
 
@@ -190,6 +197,8 @@ class App(BaseApp):
 
     def close_project(self):
         if not self.can_leave(): return
+        code=getattr(self,'code_workspace',None)
+        if code and not code.closed:code.close()
         self.doc=None; self.project=None; self.saved_state=None; self.active_map=None; self.page=0
         self.maps.delete(*self.maps.get_children()); self.project_name.set('No project open'); self.ecu_name.set('Open a BIN to identify its software')
         self.pack_count.set('MAPPACK · 0'); self.detection_label.set('No binary loaded'); self.checksum_badge.set('Checksums · not checked')
@@ -303,6 +312,8 @@ class App(BaseApp):
         self.output(json.dumps(result,indent=2))
 
     def refresh(self):
+        code=getattr(self,'code_workspace',None)
+        if code and not code.closed and code.document is not self.doc:code.close()
         d=self.need()
         refresh_axes(d.data,d.definitions)
         from .solutions import launch_control_maps
