@@ -5,6 +5,25 @@ from tkinter import ttk,simpledialog as sd,filedialog as fd
 from .core import map_values,number,TYPES,axis_values
 
 
+def wrap_controls(frame):
+    """Wrap compact comparison controls without changing the main editor."""
+    previous=[None]
+    def layout(event=None):
+        width=max(1,frame.winfo_width());children=frame.winfo_children()
+        key=(width,tuple((str(w),w.winfo_reqwidth()) for w in children))
+        if key==previous[0]:return
+        previous[0]=key;row=0;column=0;used=0
+        for widget in children:widget.pack_forget()
+        for widget in children:
+            if isinstance(widget,ttk.Label) and widget.winfo_reqwidth()>width:
+                widget.configure(wraplength=max(80,width-8))
+            needed=widget.winfo_reqwidth()+5
+            if used and used+needed>width:row+=1;column=0;used=0
+            widget.grid(row=row,column=column,sticky='w',padx=(0,5),pady=(0,4))
+            used+=needed;column+=1
+    frame.bind('<Configure>',layout,add='+')
+
+
 def render_editor(app,index):
     d=app.need(); m=d.definitions['maps'][index]
     from .codeblocks import map_name,codeblock
@@ -28,7 +47,7 @@ def render_editor(app,index):
         return
     ttk.Label(controls,text='Values').pack(side='left',padx=(0,5))
     units=ttk.Combobox(controls,textvariable=mode,values=['Physical','Raw'],state='readonly',width=10); units.pack(side='left')
-    ttk.Checkbutton(controls,text='Show original',variable=original_visible).pack(side='left',padx=12)
+    ttk.Checkbutton(controls,text='Show reference' if getattr(app,'comparison_reference',None) else 'Show original',variable=original_visible).pack(side='left',padx=12)
     plot_select=ttk.Combobox(controls,textvariable=graph_mode,values=['3D surface','2D curve'],state='readonly',width=13); plot_select.pack(side='right')
     tools=ttk.Frame(host);tools.pack(fill='x',pady=(0,10))
     split=ttk.Panedwindow(host,orient='vertical')
@@ -63,10 +82,10 @@ def render_editor(app,index):
     selected_row=[0]
     selected_cell=[0];inline=[None]
     selection_label=tk.StringVar(value='Select a cell · Enter or double-click to edit')
-    def values(data):
-        if mode.get()=='Physical': return map_values(data,m)
-        fmt=('<' if m['endian']=='little' else '>')+TYPES[m['type']]; width=struct.calcsize(fmt)
-        return [struct.unpack_from(fmt,data,number(m['address'])+i*width)[0] for i in range(m['rows']*m['columns'])]
+    def values(data,definition=m):
+        if mode.get()=='Physical': return map_values(data,definition)
+        fmt=('<' if definition['endian']=='little' else '>')+TYPES[definition['type']]; width=struct.calcsize(fmt)
+        return [struct.unpack_from(fmt,data,number(definition['address'])+i*width)[0] for i in range(definition['rows']*definition['columns'])]
     def draw_graph():
         canvas.delete('all'); v=map_values(d.data,m); w=max(canvas.winfo_width(),500)
         if not all(math.isfinite(x) for x in v):
@@ -99,7 +118,8 @@ def render_editor(app,index):
             canvas.create_text(14,184,text=label,anchor='nw',fill='#788397')
         canvas.scale('all',0,0,1,max(80,canvas.winfo_height())/205)
     def redraw():
-        vals,orig=values(d.data),values(d.original); table.delete(*table.get_children())
+        comparison=getattr(app,'comparison_reference',None)
+        vals,orig=values(d.data),values(*comparison) if comparison else values(d.original); table.delete(*table.get_children())
         y=axis_values(d.data,m,'y_axis')
         for r in row_order:
             a=r*m['columns']; cells=[]; changed=False
@@ -175,6 +195,8 @@ def render_editor(app,index):
                 for r in range(m['rows']): writer.writerow(data[r*m['columns']:(r+1)*m['columns']])
     ttk.Button(bar,text='Export CSV',command=lambda:app.run(export_csv)).pack(side='right')
     ttk.Label(host,text=f'Source: {m["source"]}',style='Muted.TLabel',wraplength=900).pack(side='bottom',anchor='w',pady=(6,0))
+    if getattr(app,'compact',False):
+        wrap_controls(controls);wrap_controls(tools);wrap_controls(bar)
     split.pack(fill='both',expand=True,pady=(8,0))
     redraw()
 
@@ -198,14 +220,15 @@ def render_scalar(app,d,m,host,controls,mode):
     entry=ttk.Entry(editbar,textvariable=draft,width=15); entry.pack(side='left',padx=(0,10))
     app.editor_scalar_entry=entry
     fmt=('<' if m['endian']=='little' else '>')+TYPES[m['type']]
-    def value(data):
-        raw=struct.unpack_from(fmt,data,number(m['address']))[0]
-        return raw if mode.get()=='Raw' else raw*m['factor']+m['offset']
+    def value(data,definition=m):
+        raw=struct.unpack_from(fmt,data,number(definition['address']))[0]
+        return raw if mode.get()=='Raw' else raw*definition['factor']+definition['offset']
     def refresh_value(*_):
-        current,old=value(d.data),value(d.original)
+        comparison=getattr(app,'comparison_reference',None)
+        current,old=value(d.data),value(*comparison) if comparison else value(d.original)
         unit='raw' if mode.get()=='Raw' else m['unit'] or 'scaled units'
         shown.set(f'{current:g} {unit}')
-        original.set(f'Original: {old:g} {unit}'+('  ·  Modified' if bytes(d.data[number(m['address']):number(m['address'])+struct.calcsize(fmt)])!=d.original[number(m['address']):number(m['address'])+struct.calcsize(fmt)] else '  ·  Unchanged'))
+        original.set((f'Reference: {old:g} {unit}'+('  ·  Different' if current!=old else '  ·  Matches reference')) if comparison else f'Original: {old:g} {unit}'+('  ·  Modified' if bytes(d.data[number(m['address']):number(m['address'])+struct.calcsize(fmt)])!=d.original[number(m['address']):number(m['address'])+struct.calcsize(fmt)] else '  ·  Unchanged'))
         draft.set(f'{current:g}')
         stored.set(f'Stored value: {struct.unpack_from(fmt,d.data,number(m["address"]))[0]:g} · {m["type"]} {m["endian"]} endian · 0x{number(m["address"]):06X}')
     def apply():
@@ -214,6 +237,7 @@ def render_scalar(app,d,m,host,controls,mode):
         d.set_map_cell(m,0,physical); app.refresh()
     app.editor_scalar_apply=ttk.Button(editbar,text='Apply value',style='Accent.TButton',command=lambda:app.run(apply))
     app.editor_scalar_apply.pack(side='left')
+    if getattr(app,'compact',False):wrap_controls(controls);wrap_controls(editbar)
     entry.bind('<Return>',lambda _:app.run(apply))
     ttk.Label(card,textvariable=stored,style='Muted.TLabel',wraplength=700).pack(anchor='w',pady=(16,0))
     ttk.Label(card,text='Edits stay in this project. Undo restores the previous value.',style='Muted.TLabel',wraplength=700).pack(anchor='w',pady=(8,0))

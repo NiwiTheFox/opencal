@@ -1,4 +1,4 @@
-OpenCal â€” offline binary calibration workbench, version 0.7.0
+OpenCal â€” offline binary calibration workbench, version 0.8.0
 Copyright (c) 2026 OpenCal contributors.
 
 This combined distribution is licensed under GNU GPL version 3 only.
@@ -34,3 +34,5 @@ Additional 0.6 changes: ROM-axis editing and storage validation, atomic table pr
 Portable 0.6.1 distributions contain unchanged CPython/Tcl/Tk runtime files, plus isolated path configuration. Python, Tcl/Tk and component license notices are retained in runtime-licenses. The source ZIP does not contain runtime binaries. Runtime versions and packaging exclusions are recorded in RUNTIME-MANIFEST.json.
 
 Additional 0.7 changes: English descriptions and system keys extracted from retained ZedSuite bilingual database and English translations; original grouped DTC interface, checked stock-reference mapping and exact monitoring restoration. English translation/helper sources and hashes are retained in third_party/zedsuite.
+
+Additional 0.8 original OpenCal work: shared-document notifications, checked compatible map comparisons, side-by-side hex and map windows, explicit read-only reference renderer and grouped comparison browser.

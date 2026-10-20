@@ -145,6 +145,26 @@ class App(BaseApp):
     def read_dtcs(self):
         self.dtc_panel.read()
 
+    def compare(self):
+        d=self.need()
+        path=fd.askopenfilename(title='Select a copied read-only comparison BIN',filetypes=[('ECU binary','*.bin *.ori'),('All files','*.*')])
+        if not path:return
+        self.open_comparison(read_binary(path),path)
+
+    def open_comparison(self,data,path):
+        from .compare_ui import Comparison
+        d=self.need()
+        if not 0<len(data)<=32*1024*1024:raise ValueError('Comparison must be nonempty and at most 32 MiB.')
+        d.protected_paths.add(str(Path(path).resolve()))
+        if not hasattr(self,'comparisons'):self.comparisons=[]
+        session=Comparison(self,data,path);self.comparisons.append(session)
+        return session
+
+    def close(self):
+        if self.can_leave():
+            for session in list(getattr(self,'comparisons',[])):session.close()
+            self.root.destroy()
+
     def render_hex(self):
         from .hex_view import render
         render(self)
@@ -176,6 +196,7 @@ class App(BaseApp):
         self.status.set('Project closed'); self.show_welcome()
         self.hex.configure(state='normal'); self.hex.delete('1.0','end'); self.hex.configure(state='disabled')
         self.dtc_panel.refresh()
+        for session in list(getattr(self,'comparisons',[])):session.refresh()
         self.profiles.delete(0,'end'); self.analysis.configure(state='normal'); self.analysis.delete('1.0','end'); self.analysis.configure(state='disabled')
         from .solutions_ui import refresh_solutions
         refresh_solutions(self)
@@ -304,6 +325,7 @@ class App(BaseApp):
         refresh_solutions(self)
         self.dtc_panel.refresh()
         if self.active_map is not None and self.active_map<len(d.definitions['maps']): self.render_map(self.active_map)
+        for session in list(getattr(self,'comparisons',[])):session.refresh()
 
     def view_map(self):
         if self._filtering or not self.doc: return

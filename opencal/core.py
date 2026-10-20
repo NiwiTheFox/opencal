@@ -202,6 +202,16 @@ class Document:
         self.definitions = {'schema': 'opencal.definitions', 'version': 1, 'maps': [], 'signatures': []}
         self.profiles = {}
         self.dtc_reference = None
+        self.revision = 0
+        self._listeners = set()
+
+    def subscribe(self,callback):
+        self._listeners.add(callback)
+        return lambda:self._listeners.discard(callback)
+
+    def _notify(self):
+        self.revision+=1
+        for callback in tuple(self._listeners):callback()
 
     def edit(self, address, new, label='Hex edit'):
         new = bytes(new)
@@ -214,6 +224,7 @@ class Document:
         self.data[address:address + len(new)] = new
         self.undo_stack.append(action); self.redo_stack.clear()
         self.history.append({'action': 'edit', 'address': address, 'before': before.hex(), 'after': new.hex(), 'label': str(label)})
+        self._notify()
 
     def undo(self):
         if self.undo_stack:
@@ -221,6 +232,7 @@ class Document:
             self.data[a:a + len(before)] = before
             self.redo_stack.append((a, before, after, label))
             self.history.append({'action': 'undo', 'label': label})
+            self._notify()
 
     def redo(self):
         if self.redo_stack:
@@ -228,6 +240,7 @@ class Document:
             self.data[a:a + len(after)] = after
             self.undo_stack.append((a, before, after, label))
             self.history.append({'action': 'redo', 'label': label})
+            self._notify()
 
     def find(self, pattern, start=0):
         if not pattern:

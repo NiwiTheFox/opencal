@@ -214,3 +214,9 @@ Read the DTC records under **ECU tools & DTCs**. Codes are grouped by system. Cl
 If a tuned file was already disabled when loaded, use **Load stock DTC reference…** with its matching copied original. OpenCal checks identities and record layouts before it can restore exact enabled bytes. Save a project to retain the checked reference.
 
 See [the update roadmap](docs/ROADMAP.md) for the next releases.
+
+## Compare two files
+
+Open **Analysis & compare → Compare BIN** and choose a copied reference BIN. Two windows open: synchronized hex and changed maps grouped by codeblock/category. Maps open side by side: edit your active project on the left, inspect the lighter-grey read-only reference on the right. Both windows share the main editor’s data and undo history, so changes appear immediately. The values tab shows the active value, reference and difference; use its Edit selected button or Enter to edit an active value.
+
+Map comparisons require compatible definitions and supported matching layouts. A stock bank can be compared with matching banks in a tuned file. Raw hex comparisons always use file offsets. No reference bytes are overwritten.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0 — 2026-10-20
+
+Live hex and map comparison windows; editable active maps beside lighter-grey read-only reference maps; codeblock/category groups; compatible ORI bank matching; current/reference/delta values; shared undo/redo and immediate updates in the main editor. See [release notes](docs/RELEASE-NOTES.md) for validation and known issues.
+
 ## 0.7.0 — 2026-10-19
 
 English DTC descriptions and system grouping; white-text state buttons with green/red rows; grouped and individual codeblock control; persistent live DTC display; exact stock-reference restoration with project persistence. See [release notes](docs/RELEASE-NOTES.md) for validation and known issues. Upcoming comparison/EGR/C166 work is in [the roadmap](docs/ROADMAP.md).

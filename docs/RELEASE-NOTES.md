@@ -1,29 +1,32 @@
-# OpenCal 0.7.0 — English DTC workspace
+# OpenCal 0.8.0 — Live comparisons and side-by-side maps
 
-Development preview. Extract the whole Windows ZIP and run OpenCal.exe. Python and Tcl/Tk are included; no installation or account is required.
+Development preview. Extract the whole Windows ZIP and run OpenCal.exe. Python and Tcl/Tk are bundled.
 
 ## What changed
 
-- All 1,776 bundled DTC descriptions and system categories are English, using the supplied GPL ZedSuite English/bilingual sources with complete coverage checks.
-- DTCs are grouped by system and fault code. Each code has a real Enabled/Disabled button: enabled row text is green, disabled row text red, and button text stays white. Mixed states are explicit.
-- A group button edits all matching codeblocks as one undo operation. Expand a code to inspect and control individual records. Search includes descriptions, P-codes, VAG codes and codeblock labels; state filters and counts are available.
-- DTC records stay visible and update after edits, undo and redo. Expansion and scroll position are preserved.
-- Load stock DTC reference enables exact restoration for a tuned input already disabled when opened. Embedded ECU/hardware/software IDs, per-bank IDs and whole DTC record topology are checked; ambiguous banks are refused. Loaded-original enabled bytes take priority. No generic enabled monitoring values are guessed.
-- The checked reference is retained inside a saved project with an integrity hash. Attaching it marks the project unsaved and never changes calibration bytes.
-- A staged roadmap covers live comparison, verified EGR solutions, C166/C167 disassembly and assembly.
+- Analysis & compare → Compare BIN opens separate hex and map-comparison windows. The selected comparison BIN is read-only; all editing affects the active project.
+- Hex comparison shows both files, highlighted differences, synchronized file-wide scrolling, previous/next differences, offset navigation and active-byte editing. Unequal file lengths are visible; editing cannot resize the active BIN.
+- Changed maps are grouped by codeblock and category. Opening a map shows the editable active table/graph beside the read-only reference table/graph. The reference pane has a lighter grey background and no edit bindings or commands.
+- A second values tab lists physical active/reference/delta values, including changed axes. Enter, double-click or the Edit selected button edits active values; axis edits use the existing checked preview.
+- Comparison editors share the main project's bytes and history. Map, axis, hex, DTC edits and undo/redo update every view without reloading the BIN. Open in main editor jumps to that map in the workbench.
+- A selected map stays open if editing removes its final difference. Group expansion and list position are preserved; replacing or closing the project closes its comparison views and removes their listeners.
+- Matching standard EDC15 banks can be compared with a single matching ORI bank after identity and axis-header checks. Codeblock metadata distinguishes bank identities. Incompatible or ambiguous map layouts are listed as unmatched; raw hex comparison remains available.
+- English grouped DTC controls from 0.7 are retained.
 
 ## Validation
 
-88 local tests passed (one portable-only test skipped in the source run), including synthetic duplicate/mixed DTC records, individual and grouped edits, exact undo/redo, reference mismatches, project-reference integrity and the copied stock/V9 reference (504 records). Existing editing, axes, hex, checksum, detection and export regressions passed. GUI smoke passed. Native Windows inspection of the copied V9 file confirmed English grouping, white button labels, green/red states, all-bank toggling and exact undo to zero changed bytes. Original firmware was not opened from USB or changed.
+94 tests passed in the final local portable build, including its bundled runtime (no skips). GUI smoke passed. Tests cover aligned side-by-side tables, visible controls at small window sizes, callback errors, shared-document notifications, active/reference protection, changed axes, incompatible inputs, active edits, immediate main-editor updates, undo, window closing and listener cleanup. Native Windows inspection confirmed codeblock/category grouping, both maps visible side by side and the lighter read-only reference pane. The copied stock/V9 definitions matched all 213 tables and exposed 84 changed maps. Copied firmware remained unchanged on disk.
 
 ## Known issues and limits
 
-- DTC enabling needs exact known enabled bytes in the loaded original or a validated matching stock reference. A factory-disabled reference cannot recover an enabled state. Mixed group buttons enable matching records; use expanded record controls for individual changes.
-- DTC scanning supports selected standard V4.1 classic EDC15 record layouts; unsupported/fault-path layouts remain unsupported. These are firmware monitoring settings, not live fault readings.
-- A stock reference contains private firmware inside your project. Projects and reference data are not included in public releases.
-- Opening projects with this new reference field in older OpenCal releases will ignore that optional restoration reference. Use 0.7 or newer to retain it when resaving.
-- Map discovery and semantics still need review outside the validated standard EDC15 layouts. Other ECU families, generic EDC16 checksums and ECU map-switching patches remain unsupported.
-- Existing table editing selects cells or whole rows; arbitrary rectangular paste is not implemented. 3D plots use indexed spacing. Nonmonotonic axis interpolation uses index spacing.
-- Launch-control byte edits have source parity tests but no vehicle execution validation. Matching checksums do not validate calibration or execution.
-- Live comparison windows, automatic EGR and the C166/C167 code workspace are planned, not implemented in this release.
-- Windows portable builds are 64-bit and require the whole extracted folder. No clean Windows VM validation has been performed.
+- Map matching currently supports checked standard V4.1 EDC15 bank layouts and explicitly signed synthetic fixtures. Other layouts are shown as unmatched rather than interpreted at guessed offsets. Matching metadata does not independently verify map semantics.
+- Hex comparison uses raw file offsets. Map comparison can relocate compatible banks, so their difference counts describe different comparisons.
+- The values/delta tab shows at most 4,096 table cells plus the axes; counts cover the entire map. Existing table/row editing remains available in the side-by-side editor.
+- Large files or many simultaneous comparison sessions can make full difference recalculation slower. The app remains an offline editor, without a live connection to the ECU.
+- The reference pane supports inspection, units and graph selection. To edit that file, open a separate working project; this comparison never edits it.
+- DTC enabling requires known enabled bytes from the loaded original or a checked matching stock reference. Classic standard V4.1 DTC layouts only. Mixed group buttons attempt to enable all matching records; individual control is available underneath.
+- Map discovery outside validated EDC15 layouts remains incomplete. Unsupported checksums and ECU map-switching patches remain unsupported.
+- Arbitrary rectangular table paste is not implemented. 3D plots use indexed spacing; nonmonotonic interpolation uses index spacing.
+- Automatic EGR and the C166/C167 workspace are still planned. The supplied ORI and V9 both already contain a flat 850 mg/st candidate EGR request map, so their differences do not validate a new map-disabling strategy.
+- Launch-control execution and modified calibrations have not been validated on a vehicle. Checksum matching does not validate execution.
+- Windows portable builds are 64-bit and require the entire extracted folder. No clean Windows VM test has been performed.

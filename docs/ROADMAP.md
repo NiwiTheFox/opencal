@@ -2,6 +2,8 @@
 
 Agreed scope: 19 October 2026. Starting release: 0.6.1.
 
+Progress: 0.7 published; 0.8 completed and release-tested. EGR and C166/C167 milestones remain pending. The user selected all-bank DTC toggles with individual controls and a read-only comparison file. Comparison maps also use codeblock/category groups and side-by-side editable/read-only panes.
+
 ## Working rules
 
 - Work only with fresh local copies under `outputs/to use`, in a subfolder for each BIN. BIN and project names start with `codex`. Do not open or edit USB files in tuning tools.
