@@ -1,7 +1,7 @@
 """GPL-3.0-only. Adapted 2026-10-18 from ZedSuite by ZedPerf (C) 2026.
 
 Source: src/lib/ecu/bosch/checksums/edc15p-checksum.ts (EDCSuite-derived).
-See third_party/zedsuite and NOTICE. Only standard V4.1 / 2002 is enabled.
+See third_party/zedsuite and NOTICE. Standard V4.1 / 2002 and compact TDI41v2 are enabled.
 Unknown formats fail closed; original bytes are never modified.
 """
 import struct
@@ -17,7 +17,9 @@ def standard_bases(data):
 
 def calculate_2002(data, start, end, a, b, c=0, d=0, first=True):
     """Exact 16-bit arithmetic port. end follows upstream inclusive word semantics."""
-    if start < 0 or start % 2 or end >= len(data) or start > end:
+    if (type(start) is not int or type(end) is not int or start < 0 or start % 2
+            or end >= len(data) or start > end or (end // 2 + 1) * 2 > len(data)
+            or (end // 2 - start // 2 + 1) % 2 or end // 2 == start // 2):
         raise ValueError('Invalid checksum calculation range.')
     count, stop, pos = start//2, end//2, start
     x=y=0
@@ -49,9 +51,11 @@ def calculate_2002(data, start, end, a, b, c=0, d=0, first=True):
 
 
 def inspect(data):
+    if len(data)==0x80000 and any(data[b+1:b+12]==SIGNATURE for b in (0x58000,0x64000)):
+        return inspect_compact(data)
     bases=standard_bases(data)
     unknown={'status':'unverified','algorithm':'unknown','regions':[],
-             'reason':'Requires exact 512 KiB standard V4.1 layout; compact and other variants are not enabled.'}
+             'reason':'Requires a supported 512 KiB standard or compact V4.1 checksum layout. Early and unknown variants remain unverified.'}
     if not bases: return unknown
     seed1=calculate_2002(data,0x14000,0x4BFFE,0x8631,0xEFCD)
     seed2=calculate_2002(data,0,0x7FFE,0,0)
@@ -78,7 +82,8 @@ def correct(data, original):
     baseline=inspect(original)
     if baseline['status']!='matched':
         raise ValueError('Correction requires an original with all supported checksum regions matching.')
-    if standard_bases(data)!=standard_bases(original):
+    from .layouts import detect
+    if detect(data)!=detect(original):
         raise ValueError('Codeblock layout changed; checksum correction refused.')
     report=inspect(data)
     result=bytearray(data)
@@ -88,3 +93,34 @@ def correct(data, original):
     if inspect(result)['status']!='matched':
         raise ValueError('Checksum post-verification failed.')
     return bytes(result)
+
+
+def calculate_tdi41(data,start,end,a=0,b=0):
+    """ZedSuite/VAGEDCSuite TDI41 arithmetic, end exclusive, paired words."""
+    if type(start) is not int or type(end) is not int or start<0 or start%2 or end>len(data) or end<=start or (end-start)%4:
+        raise ValueError('Invalid TDI41 calculation range.')
+    a&=65535;b&=65535;p=start
+    word=lambda p:struct.unpack_from('<H',data,p)[0]
+    while p<end:
+        a^=word(p);p+=2;n=b&15;carry=0
+        if n:a=((a<<n)|(a>>(16-n)))&65535;carry=a&1
+        b=((b-word(p)-carry)^a)&65535;p+=2
+        if p==end:break
+        a=(a-word(p)+0xdaac)&65535;p+=2
+        b^=word(p);p+=2;n=a&15
+        if n:b=((b>>n)|(b<<(16-n)))&65535
+    return ((a-0x8631+0xdaac)&65535)+((b^0xdf9b)<<16)
+
+
+def inspect_compact(data):
+    points=(0x10000,0x14000,0x58000,0x58b80,0x64000,0x70000,0x70b80,0x7c000)
+    regions=[];first=True
+    for start,end in zip(points,points[1:]):
+        if all(v==0xc3 for v in data[start:end-4]):continue
+        computed=calculate_tdi41(data,start,end-4,0 if first else 0x8631,0 if first else 0xefcd)
+        stored=struct.unpack_from('<I',data,end-4)[0]
+        regions.append({'start':start,'end_inclusive':end-5,'store':end-4,'stored':stored,'computed':computed,'matches':stored==computed})
+        first=False
+    matched=sum(r['matches'] for r in regions)
+    return {'status':'matched' if regions and matched==len(regions) else 'mismatch','algorithm':'tdi41v2','regions':regions,'found':len(regions),'matched':matched,
+            'reason':'Source-backed compact V4.1 checksums; ECU execution unverified.'}

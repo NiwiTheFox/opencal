@@ -83,6 +83,18 @@ class EGRTests(unittest.TestCase):
         self.assertEqual(inspect(v9)['status'],'target present');self.assertEqual(preview(Document(v9))['edits'],[])
         self.assertEqual(STOCK.read_bytes(),stock);self.assertEqual(V9.read_bytes(),v9)
 
+    def test_structural_other_software_uses_bounded_maps_and_exact_undo(self):
+        original=fixture();old=b'038906019FJ 0281010789 SG 1376';new=b'038906019LA 0281010789 SG 5405'
+        pos=original.find(old);original[pos:pos+len(old)]=new
+        # Move the table away from the FJ fixed offset to exercise structural detection.
+        address=0x70000+MAP_OFFSET;begin=address-66;new_begin=0x76000
+        original[new_begin:new_begin+482]=original[begin:begin+482];original[begin:begin+482]=bytes(482)
+        doc=Document(original);state=inspect(original);self.assertEqual(state['status'],'supported')
+        self.assertEqual(state['maps'][0]['address'],new_begin+66)
+        op=preview(doc);apply_preview(doc,op)
+        self.assertEqual(doc.data[new_begin+66:new_begin+482],TARGET)
+        doc.undo();self.assertEqual(doc.data,original)
+
 
 class EGRWidgetTests(unittest.TestCase):
     def test_preview_apply_undo_refresh_and_stale_project_guard(self):

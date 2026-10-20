@@ -19,7 +19,7 @@ class DTCPanel:
         self.reference=tk.StringVar(value='Re-enable uses exact enabled bytes from the loaded original.')
         top=ttk.Frame(host,padding=(12,10));top.pack(fill='x')
         ttk.Label(top,text='Diagnostic trouble codes',style='Title.TLabel').pack(anchor='w')
-        ttk.Label(top,text='Buttons change monitoring in this project. They do not report live vehicle faults.',style='Muted.TLabel').pack(anchor='w',pady=(5,10))
+        ttk.Label(top,text='Buttons change project monitoring, not live faults. Shared fault paths affect every code named on that path.',style='Muted.TLabel').pack(anchor='w',pady=(5,10))
         controls=ttk.Frame(top);controls.pack(fill='x')
         ttk.Button(controls,text='Read DTC records',command=lambda:app.run(self.read)).pack(side='left',padx=(0,8))
         ttk.Label(controls,text='Search').pack(side='left',padx=(0,6))

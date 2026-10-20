@@ -205,7 +205,10 @@ class App(BaseApp):
         if self._filtering: return
         self._filtering=True
         try:
-            selected=str(self.active_map) if self.active_map is not None else None
+            selected_items=self.maps.selection()
+            selected=selected_items[0] if selected_items else str(self.active_map) if self.active_map is not None else None
+            focused=self.maps.focus()
+            scroll=self.maps.yview()
             open_state={}
             def remember(parent=''):
                 for item in self.maps.get_children(parent):
@@ -235,6 +238,9 @@ class App(BaseApp):
                 self.maps.insert(categories[key],'end',iid=str(i),text=f'{number(m["address"]):05X}  {label}',values=(i,))
             for (_,category),cid in categories.items(): self.maps.item(cid,text=f'{category}  ·  {len(self.maps.get_children(cid))}')
             if selected and self.maps.exists(selected): self.maps.selection_set(selected)
+            if focused and self.maps.exists(focused): self.maps.focus(focused)
+            elif selected and self.maps.exists(selected): self.maps.focus(selected)
+            if scroll:self.maps.yview_moveto(scroll[0])
         finally: self._filtering=False
 
     def map_leaf_ids(self):
@@ -314,7 +320,7 @@ class App(BaseApp):
         finally: self._filtering=False
         self.project_name.set(Path(self.project or d.source or 'Embedded project').stem)
         ids=identity(d.original)
-        self.ecu_name.set(('Bosch EDC15 / standard V4.1\n' if ids else 'ECU identity unverified\n')+f'{len(d.data)//1024:,} KiB · {digest(d.original)[:12]}…')
+        self.ecu_name.set(('Bosch EDC15 / '+ids[0]['name']+'\n' if ids else 'ECU identity unverified\n')+f'{len(d.data)//1024:,} KiB · {digest(d.original)[:12]}…')
         self.pack_count.set(f'MAPPACK · {len(d.definitions["maps"])}')
         detection=d.definitions.get('detection',{})
         if detection.get('method')=='reference-profile': self.detection_label.set(f'Reference profile matched · {detection["name"]} · {len(d.definitions["maps"])} maps · source semantics remain unverified')

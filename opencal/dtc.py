@@ -7,6 +7,7 @@ from collections import defaultdict
 from .core import digest
 from .edc15 import dtc_records
 from .checksums import standard_bases
+from .layouts import detect
 from .transfer import identifiers
 from .codeblocks import metadata_id
 
@@ -45,15 +46,18 @@ def reference_records(current,reference):
     expected=identifiers(current)
     if len(reference)!=len(current) or any(not v for v in expected.values()) or expected!=identifiers(reference):
         raise ValueError('Stock reference must match embedded ECU, hardware and software identifiers and file size.')
+    current_layout=detect(current);reference_layout=detect(reference)
+    if current_layout['generation']!=reference_layout['generation']:raise ValueError('Stock DTC layout generation differs.')
+    target_blocks={b['base']:b for b in current_layout['blocks']};source_blocks={b['base']:b for b in reference_layout['blocks']}
     target=_banks(current,dtc_records(current)); source=_banks(reference,dtc_records(reference)); mapping={}
-    if set(target)!=set(standard_bases(current)) or set(source)!=set(standard_bases(reference)):
+    if set(target)!={b['base'] for b in detect(current)['blocks']} or set(source)!={b['base'] for b in detect(reference)['blocks']}:
         raise ValueError('A complete supported DTC table is required in every calibration bank.')
     for bank,records in target.items():
-        topology={offset:r['vag_code'] for offset,r in records.items()}
+        topology={offset:(tuple(r.get('path_codes',[r['vag_code']])),tuple(a-bank for a in r.get('segments',[r['address']]))) for offset,r in records.items()}
         candidates=[]
         for original_bank,original in source.items():
-            if topology!={offset:r['vag_code'] for offset,r in original.items()}:continue
-            if identifiers(current[bank-0x4000:bank+0xc000])!=identifiers(reference[original_bank-0x4000:original_bank+0xc000]):continue
+            if topology!={offset:(tuple(r.get('path_codes',[r['vag_code']])),tuple(a-original_bank for a in r.get('segments',[r['address']]))) for offset,r in original.items()}:continue
+            if identifiers(current[target_blocks[bank]['start']:target_blocks[bank]['end']])!=identifiers(reference[source_blocks[original_bank]['start']:source_blocks[original_bank]['end']]):continue
             candidates.append(original_bank)
         if not candidates:raise ValueError(f'Stock DTC record layout differs from bank 0x{bank:05X}.')
         if len(candidates)>1:
@@ -61,7 +65,7 @@ def reference_records(current,reference):
             selected=[b for b in candidates if block is not None and metadata_id(reference,b)==block]
             if len(selected)==1:candidates=selected
         for offset,record in records.items():
-            values={bytes.fromhex(source[b][offset]['raw'])[:5] for b in candidates}
+            values={bytes.fromhex(source[b][offset]['raw']) if 'segments' in source[b][offset] else bytes.fromhex(source[b][offset]['raw'])[:5] for b in candidates}
             if len(values)!=1:raise ValueError('Stock banks have ambiguous monitoring bytes; use an exact matching stock reference.')
             mapping[record['address']]=next(iter(values))
     return mapping
@@ -74,9 +78,11 @@ def enabled_bytes(document,records=None):
     result={}
     for record in dtc_records(document.data) if records is None else records:
         address=record['address']; old=original.get(address)
-        if old and old['vag_code']==record['vag_code'] and old['enabled']:
-            result[address]=bytes.fromhex(old['raw'])[:5]
-        elif address in external and external[address]!=DISABLED:
+        if (old and record['vag_code'] in old.get('path_codes',[old['vag_code']]) and old['enabled']
+                and old.get('segments',[address])==record.get('segments',[address])
+                and old.get('path_codes',[old['vag_code']])==record.get('path_codes',[record['vag_code']])):
+            result[address]=bytes.fromhex(old['raw']) if 'segments' in old else bytes.fromhex(old['raw'])[:5]
+        elif address in external and external[address]!=DISABLED*len(record.get('segments',[address])):
             result[address]=external[address]
     return result
 
@@ -92,19 +98,23 @@ def preview(document,code,enable,addresses=None):
     restore=enabled_bytes(document,records) if enable else {}
     edits=[]; result=bytearray(document.data)
     for record in records:
-        address=record['address'];before=bytes(result[address:address+5])
+        address=record['address'];segments=record.get('segments',[address]);before=b''.join(bytes(result[a:a+5]) for a in segments)
         if enable:
             if record['enabled']:continue
             if address not in restore:
                 raise ValueError(f'Cannot enable {record["code"]} at 0x{address:06X}: the loaded original was already disabled. Load a matching stock DTC reference with known enabled bytes.')
             after=restore[address]
-        else:after=DISABLED
+        else:after=DISABLED*len(segments)
         if before!=after:
-            edits.append({'address':address,'before':before.hex(),'after':after.hex(),'bank':record['codeblock_base']})
-            result[address:address+5]=after
+            for index,a in enumerate(segments):
+                old=before[index*5:index*5+5];new=after[index*5:index*5+5]
+                if old!=new:
+                    edits.append({'address':a,'before':old.hex(),'after':new.hex(),'bank':record['codeblock_base']})
+                    result[a:a+5]=new
     return {'schema':'opencal.patch-preview','version':1,'name':f'{"Enable" if enable else "Disable"} {records[0]["code"]} / VAG {code}',
             'input_sha256':digest(document.data),'result_sha256':digest(result),'edits':edits,
-            'verification':'Exact supported DTC monitoring records; source file preserved'}
+            'verification':'Exact supported DTC monitoring records; source file preserved',
+            'shared_path_codes':sorted({c for r in records for c in r.get('path_codes',[])})}
 
 
 def apply(document,code,enable,addresses=None):

@@ -9,7 +9,9 @@ from .core import number
 
 
 def metadata_id(data,base):
-    if base not in standard_bases(data):return None
+    from .layouts import detect
+    layout=detect(data)
+    if layout['generation']=='early' or base not in [b['base'] for b in layout['blocks']]:return None
     table_end,offset=struct.unpack_from('<HH',data,base+0x1000)
     if table_end==0xc3c3 or offset+2>0xc000:return None
     value=struct.unpack_from('<H',data,base+offset)[0]
@@ -18,9 +20,10 @@ def metadata_id(data,base):
 
 def codeblock(data,m):
     address=number(m['address'])
-    for base in standard_bases(data):
-        if base-0x4000<=address<base+0xc000:
-            return {'number':metadata_id(data,base),'base':base,'start':base-0x4000,'end':base+0xc000}
+    from .layouts import detect
+    for block in detect(data)['blocks']:
+        if block['start']<=address<block['end']:
+            return dict(block,number=metadata_id(data,block['base']))
     return None
 
 

@@ -2,7 +2,7 @@
 import hashlib,json,zipfile,argparse
 from pathlib import Path
 
-DOCS={'ARCHITECTURE.md','FORMATS.md','RELEASE-NOTES.md','SOURCE-REVIEW.md','ROADMAP.md','C166-RESEARCH.md'}
+DOCS={'ARCHITECTURE.md','FORMATS.md','RELEASE-NOTES.md','SOURCE-REVIEW.md','ROADMAP.md','C166-RESEARCH.md','SUPPORT.md','AUDIT-0.9.1.md','C166-WORKSPACE.md'}
 ROOT_FILES={'README.md','CHANGELOG.md','NOTICE','LICENSE','LICENSE-MIT-0.1','OpenCal.exe','Launch.cmd','.gitignore'}
 
 

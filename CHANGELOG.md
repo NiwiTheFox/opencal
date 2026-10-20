@@ -1,3 +1,7 @@
+# 0.9.1
+
+Expanded EDC15 layouts, compact checksums and shared fault-path DTCs, early map classification, broader guarded EGR previews, correctness audit and regression fixes. See docs/RELEASE-NOTES.md and docs/SUPPORT.md.
+
 # Changelog
 
 ## 0.9.0 — 2026-10-20

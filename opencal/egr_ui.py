@@ -11,7 +11,7 @@ def build(app,parent):
     ttk.Label(card,text='Disable EGR',style='Title.TLabel').pack(anchor='w')
     app.egr_status=tk.StringVar(value='Open a BIN to inspect support')
     ttk.Label(card,textvariable=app.egr_status,style='Muted.TLabel',wraplength=850).pack(anchor='w',pady=10)
-    ttk.Label(card,text='Checked FJ / SG 1376 layout: set the EGR fresh-air request to 850 mg/st and disable its four related diagnostic codes in every matching bank.\nThis source-backed strategy has not been validated on a vehicle.',style='Muted.TLabel',wraplength=850).pack(anchor='w',pady=(0,12))
+    ttk.Label(card,text='Supported standard EDC15 layouts: set bounded EGR fresh-air request tables to 850 mg/st and disable the detected related diagnostic records in every matching bank.\nThis source-backed strategy has not been validated on a vehicle.',style='Muted.TLabel',wraplength=850).pack(anchor='w',pady=(0,12))
     buttons=ttk.Frame(card);buttons.pack(fill='x')
     ttk.Button(buttons,text='Preview disable EGR…',command=lambda:app.run(lambda:show_preview(app))).pack(side='left',padx=(0,8))
     ttk.Button(buttons,text='Preview restore loaded original…',command=lambda:app.run(lambda:show_preview(app,True))).pack(side='left')

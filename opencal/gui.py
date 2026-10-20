@@ -287,7 +287,7 @@ class App:
         if not count:
             mb.showinfo('Checksums','All supported region sums already match. No bytes changed.'); return
         if mb.askyesno('Checksum correction preview',f'Change {count} checksum bytes in the working copy? Protected data outside checksum fields will stay unchanged. Undo is available.'):
-            d.edit(0,result,'EDC15 standard V4.1 checksum correction'); self.refresh(); self.verify_checksums()
+            d.edit(0,result,'EDC15 supported checksum correction'); self.refresh(); self.verify_checksums()
 
     def read_dtcs(self):
         records=dtc_records(self.need().data)

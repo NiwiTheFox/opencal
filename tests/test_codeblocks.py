@@ -50,3 +50,16 @@ class CodeblockTests(unittest.TestCase):
             app.maps.item(block,open=True);app.maps.item(category,open=False);app.undo()
             self.assertTrue(app.maps.item(block,'open'));self.assertFalse(app.maps.item(category,'open'))
         finally:root.destroy()
+
+
+class MapBrowserArrowTests(unittest.TestCase):
+    def test_selection_focus_survives_refresh_for_keyboard_navigation(self):
+        root=tk.Tk()
+        try:
+            app=App(root);data=bytearray(0x80000);data[0x70001:0x7000c]=SIGNATURE
+            m=definitions()['maps'][0];m['address']=0x70100
+            app.doc=Document(data);app.doc.definitions={'schema':'opencal.definitions','version':1,'maps':[m]};app.refresh();root.update()
+            app.maps.selection_set('0');app.maps.focus('0');app.view_map();app.refresh();root.update()
+            self.assertEqual(app.maps.focus(),'0')
+        finally:root.destroy()
+

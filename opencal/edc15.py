@@ -18,15 +18,16 @@ SOURCE='ZedPerf/ZedSuite, GPL-3.0-only; conservative OpenCal port 2026-10-18'
 
 
 def identity(data):
-    bases=standard_bases(data)
+    from .layouts import detect
+    layout=detect(data);bases=[b['base'] for b in layout['blocks']]
     if not bases: return []
     strings=[]
     for match in re.finditer(rb'[\x20-\x7e]{8,}',data):
         value=match.group().decode('ascii')
         if re.search(r'0389060|02810\d{5}|EDC|SG\s*\d{4}',value):
             strings.append({'offset':match.start(),'text':value[:120]})
-    return [{'family':'EDC15P/compatible V4.1 candidate','confidence':'structural and embedded identifiers; P/P+/P++ not distinguished',
-             'name':'Standard V4.1 codeblocks','source':SOURCE,
+    return [{'family':'EDC15 P/VM compatible '+layout['generation']+' candidate','confidence':'structural and embedded identifiers; P/P+/P++ not distinguished',
+             'name':layout['generation'].title()+' EDC15 codeblocks','source':SOURCE,
              'evidence':{'signature_offsets':[hex(b+1) for b in bases],'identifiers':strings[:16]}}]
 
 
@@ -49,9 +50,10 @@ def discover(data):
 
 
 def discover_heuristic(data):
-    bases=standard_bases(data)
-    if not bases:
-        raise ValueError('EDC15 discovery currently requires a 512 KiB standard V4.1 layout.')
+    from .layouts import detect
+    layout=detect(data);blocks=layout['blocks'];bases=[b['base'] for b in blocks]
+    if not blocks:
+        raise ValueError('No supported EDC15 standard, compact or early calibration layout detected.')
     maps={}
     def axis(pos, end):
         if pos+4>end: return None
@@ -63,8 +65,8 @@ def discover_heuristic(data):
         # Deliberately stricter than upstream's bounds-only structural pass.
         if n>1 and (len(set(values))<2 or not all(x<=y for x,y in zip(values,values[1:]))): return None
         return ident,n,values,pos+4+n*2
-    for base in bases:
-        start,end=base-0x4000,base+0xC000
+    for block in blocks:
+        base,start,end=block['base'],block['start'],block['end']
         for pos in range(start,end-8,2):
             ax=axis(pos,end)
             if not ax: continue
@@ -78,7 +80,10 @@ def discover_heuristic(data):
             if xid>>8==0xF9 and yid>>8==0xDA and nx==16 and ny==13 and az and az[0]>>8==0xC1 and az[1]<=10:
                 _,count,temperatures,indices=az
                 first=indices+count*2
-                if first+count*416<=end:
+                # Selectors encode slot indices in the high byte, not map values.
+                slots=list(struct.unpack_from('<'+'H'*count,data,indices)) if first<=end else []
+                if (first+count*416<=end and len(slots)==count and all(v&255 in (0,0x40) and v>>8<count for v in slots)
+                        and all(a<=b for a,b in zip(slots,slots[1:]))):
                     for slot,temp in enumerate(temperatures):
                         a=first+slot*416
                         if sum(v!=0 for v in data[a:a+416])<21: continue
@@ -166,8 +171,11 @@ def discover_heuristic(data):
                 m.update({'minimum':3000,'maximum':8000,'evidence':f'27 07 00 0E marker at 0x{pos:X}; heuristic range only, not a validated safe engine range.'})
                 maps[address]=m
             pos+=1
+    if layout['generation'] in ('compact','early'):
+        from .early_maps import classify
+        classify(data,maps)
     from .source_sequences import source_maps
-    maps.update(source_maps(data,bases))
+    if layout['generation']=='standard':maps.update(source_maps(data,bases))
     from .solutions import launch_control_maps
     maps.update({m['address']:m for m in launch_control_maps(data)})
     # Unclassified structures are diagnostics, not a usable mappack. Hide them
@@ -178,15 +186,20 @@ def discover_heuristic(data):
         stop=m['address']+m['rows']*m['columns']*2
         m['overlaps']=[n['id'] for n in result[i+1:] if n['address']<stop]
     return {'schema':'opencal.definitions','version':1,'maps':result,'signatures':[], 'source':SOURCE,
-            'detection':{'method':'heuristic','named_candidates':len(result),'unclassified_structures_hidden':len(unclassified),
+            'detection':{'method':'heuristic','layout':layout['generation'],'named_candidates':len(result),'unclassified_structures_hidden':len(unclassified),
                          'verification':'experimental candidates only'}}
 
 
 def dtc_records(data):
+    from .layouts import detect
+    if detect(data)['generation']=='compact':
+        from .faultpaths import records
+        return records(data)
     bases=standard_bases(data)
-    if not bases: raise ValueError('Only standard V4.1 classic 8-byte DTC tables are supported.')
+    if not bases: raise ValueError('No supported classic or fault-path EDC15 DTC layout detected.')
     records=[]
     for base in bases:
+        bank_records=[]
         start=base-0x4000
         for marker in range(start+0x2800,min(start+0x8100,len(data)-2)):
             if data[marker]!=0x23: continue
@@ -196,9 +209,14 @@ def dtc_records(data):
             address=marker-5
             status,flags,kind=struct.unpack_from('<HHB',data,address)
             enabled=not(status==65535 and flags==0 and kind==0)
-            records.append({'address':address,'code_address':marker+1,'vag_code':code, 'code':info['code'],
+            bank_records.append({'address':address,'code_address':marker+1,'vag_code':code, 'code':info['code'],
                             'description':info['description'],'system':info['system'],'enabled':enabled,
                             'codeblock_base':base,'raw':bytes(data[address:address+8]).hex(),'verification':'candidate'})
+        if any(right['address'] < left['address']+8 for left,right in zip(bank_records,bank_records[1:])):
+            raise ValueError('Overlapping classic DTC candidates; table layout is ambiguous.')
+        if len({r['vag_code'] for r in bank_records})<20:
+            raise ValueError(f'Too few documented classic entries in bank 0x{base:X}; table layout is unverified.')
+        records.extend(bank_records)
     if len({r['vag_code'] for r in records})<20:
         raise ValueError('Too few documented classic entries; table layout is unverified (may use fault-path records).')
     return records
@@ -209,7 +227,8 @@ def disable_dtc(data, code):
     if not records: raise ValueError('DTC is not present in supported tables.')
     result=bytearray(data)
     for record in records:
-        a=record['address']; result[a:a+5]=bytes.fromhex('FF FF 00 00 00')
+        for a in record.get('segments',[record['address']]):
+            result[a:a+5]=bytes.fromhex('FF FF 00 00 00')
     return bytes(result),records
 
 
@@ -221,5 +240,7 @@ def restore_dtc(data, original, code):
         raise ValueError('No matching original DTC records; exact restoration unavailable.')
     result=bytearray(data)
     for r in current:
-        a=r['address']; result[a:a+5]=original[a:a+5]
+        if r.get('segments',[r['address']])!=stock[r['address']].get('segments',[r['address']]):
+            raise ValueError('Original DTC monitoring layout differs.')
+        for a in r.get('segments',[r['address']]):result[a:a+5]=original[a:a+5]
     return bytes(result)

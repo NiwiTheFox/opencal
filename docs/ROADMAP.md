@@ -1,3 +1,5 @@
+Version policy updated 20 October 2026: 0.9.x maintenance, bundled C166 tools in 1.0.0, subsequent features 1.x.0 and quick fixes 1.0.x.
+
 # OpenCal update roadmap
 
 Agreed scope: 19 October 2026. Starting release: 0.6.1.
@@ -40,7 +42,7 @@ Progress: 0.7 published; 0.8 completed and release-tested. 0.9 adds a bounded FJ
 - Apply map and DTC changes as one undoable operation. Support exact restoration and idempotent reapplication. Checksum handling uses only supported algorithms.
 - Verify changed ranges against the intended maps/records, preservation of all other bytes, bank consistency, stale previews, undo, export/reload and already-modified inputs. State remaining vehicle validation limits.
 
-## 0.10 — C166/C167 disassembler workspace
+## 1.0.0 — C166/C167 disassembler workspace
 
 - Add a far-right `C166 / C167` launcher opening a separate code workspace.
 - Include file-offset and CPU-address columns, configurable memory segments/base address, bytes, mnemonics and operands. Do not assume all ECU images have one load address.
@@ -49,7 +51,7 @@ Progress: 0.7 published; 0.8 completed and release-tested. 0.9 adds a bounded FJ
 - Evaluate the free GPL Python C166 decoder against Infineon's instruction manual and a second implementation. The MIT Ghidra C166 module is a useful independent reference; users will not need IDA or Ghidra installed.
 - Test valid instruction variants, lengths, reserved encodings, signed relative branches, segment boundaries and EXTP/EXTS/DPP handling. Keep decode coverage visible.
 
-## 0.11 — Assembler and guarded code editing
+## 1.0.0 — Assembler and guarded code editing
 
 - Evaluate Macro Assembler AS and TPASM C166 support, exact license terms, Windows builds and syntax compatibility. Bundle a suitable free engine; do not require users to install a compiler or assembler.
 - Add source editing with labels, origin, instruction/directive errors and an assemble-to-preview action. Show original bytes, assembled bytes and decoded result before applying.
