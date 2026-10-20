@@ -12,6 +12,10 @@ class SolutionsWidgetTests(unittest.TestCase):
         try:
             app=App(root);data,_=fixture();app.doc=Document(data);app.doc.definitions=discover(data);app.refresh();root.update()
             self.assertIn('Available',app.solution_status.get())
+            from opencal.solutions_ui import show_preview
+            show_preview(app);root.update()
+            for child in root.winfo_children():
+                if isinstance(child,tk.Toplevel):child.destroy()
             apply_preview(app.doc,preview_launch_control(app.doc.data));app.refresh();root.update()
             self.assertIn('Active',app.solution_status.get())
             index=next(i for i,m in enumerate(app.doc.definitions['maps']) if m['id'].startswith('launch-control-'))

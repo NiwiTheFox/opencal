@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0 — 2026-10-20
+
+Checked FJ/1376 EGR fresh-air request and related DTC solution, all-bank guards, exact byte preview, one-step undo and original restoration. Scrollable Solutions and replaced-project launch-control guard. Retains the live grouped side-by-side comparison editor. See [release notes](docs/RELEASE-NOTES.md) for support boundaries and known issues.
+
 ## 0.8.0 — 2026-10-20
 
 Live hex and map comparison windows; editable active maps beside lighter-grey read-only reference maps; codeblock/category groups; compatible ORI bank matching; current/reference/delta values; shared undo/redo and immediate updates in the main editor. See [release notes](docs/RELEASE-NOTES.md) for validation and known issues.

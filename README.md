@@ -220,3 +220,9 @@ See [the update roadmap](docs/ROADMAP.md) for the next releases.
 Open **Analysis & compare → Compare BIN** and choose a copied reference BIN. Two windows open: synchronized hex and changed maps grouped by codeblock/category. Maps open side by side: edit your active project on the left, inspect the lighter-grey read-only reference on the right. Both windows share the main editor’s data and undo history, so changes appear immediately. The values tab shows the active value, reference and difference; use its Edit selected button or Enter to edit an active value.
 
 Map comparisons require compatible definitions and supported matching layouts. A stock bank can be compared with matching banks in a tuned file. Raw hex comparisons always use file offsets. No reference bytes are overwritten.
+
+## EGR solution
+
+Under **Solutions**, choose **Preview disable EGR**. The initial supported profile is standard **038906019FJ / 0281010789 / SG 1376**. OpenCal checks every bank before proposing the 850 mg/st request-map target and its four related diagnostic codes. Review the maps, diagnostics and exact bytes, then apply one undoable change. Correct supported checksums and export a separate BIN when ready.
+
+The target strategy is source-backed and tested at byte level; vehicle behaviour remains unverified. Other software is refused. **Restore loaded original** returns to the exact input file, which may already contain modifications.

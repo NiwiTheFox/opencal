@@ -1,11 +1,19 @@
 """Guided source-backed solutions, with a concrete byte preview before apply."""
 import json,tkinter as tk
 from tkinter import ttk
+from .table_tools_ui import centre
 from .solutions import launch_control_state,preview_launch_control,apply_preview,launch_control_maps
 
 
 def build_solutions(app):
     tab=app.solutions_tab
+    canvas=tk.Canvas(tab,bg='#101218',highlightthickness=0)
+    scroll=ttk.Scrollbar(tab,orient='vertical',command=canvas.yview)
+    canvas.pack(side='left',fill='both',expand=True);scroll.pack(side='right',fill='y');canvas.configure(yscrollcommand=scroll.set)
+    content=ttk.Frame(canvas);item=canvas.create_window(0,0,window=content,anchor='nw')
+    content.bind('<Configure>',lambda e:canvas.configure(scrollregion=canvas.bbox('all')))
+    canvas.bind('<Configure>',lambda e:canvas.itemconfigure(item,width=e.width))
+    app.solutions_canvas=canvas;tab=content
     ttk.Label(tab,text='Solutions',style='Title.TLabel').pack(anchor='w',padx=18,pady=(18,8))
     ttk.Label(tab,text='Inspect support, review the change, then apply it to this project.\nOriginal BINs are preserved; checksum correction and export remain separate.',style='Muted.TLabel').pack(anchor='w',padx=18,pady=(0,18))
     card=ttk.Frame(tab,padding=18);card.pack(fill='x',padx=10)
@@ -16,13 +24,23 @@ def build_solutions(app):
     buttons=ttk.Frame(card);buttons.pack(fill='x')
     for text,restore in [('Preview enable',False),('Preview restore original',True)]:
         ttk.Button(buttons,text=text,command=lambda r=restore:app.run(lambda:show_preview(app,r))).pack(side='left',padx=(0,8))
+    from .egr_ui import build
+    build(app,tab)
     ttk.Label(tab,text='Other available tools',style='Title.TLabel').pack(anchor='w',padx=18,pady=(28,12))
     tools=ttk.Frame(tab,padding=18);tools.pack(fill='x')
     for label,fn in [('RPM limiter (SVRL)',lambda:app.jump_to_map('SVRL')),('Boost limiter (SVBL)',lambda:app.jump_to_map('SVBL')),('Read DTC records',app.read_dtcs),('Verify checksums',app.verify_checksums)]:
         ttk.Button(tools,text=label,command=lambda f=fn:app.run(f)).pack(side='left',padx=(0,8))
+    def wheel(event):
+        canvas.yview_scroll(-max(1,abs(event.delta)//120)*(1 if event.delta>0 else -1),'units');return 'break'
+    def bind_wheel(widget):
+        widget.bind('<MouseWheel>',wheel,add='+')
+        for child in widget.winfo_children():bind_wheel(child)
+    bind_wheel(canvas)
 
 
 def refresh_solutions(app):
+    from .egr_ui import refresh
+    refresh(app)
     if not app.doc: app.solution_status.set('Open a BIN to inspect support');return
     state=launch_control_state(app.doc.data,app.doc.original)
     sites=state['sites'];available=sum(s['status']=='available' for s in sites);active=sum(s['status']=='active' for s in sites);custom=sum(s['status']=='custom' for s in sites)
@@ -31,7 +49,7 @@ def refresh_solutions(app):
 
 def show_preview(app,restore=False):
     d=app.need();preview=preview_launch_control(d.data,d.original if restore else None,reference=d.original)
-    w=tk.Toplevel(app.root);w.title(preview['name']);w.geometry('800x520');w.transient(app.root)
+    w=tk.Toplevel(app.root);w.title(preview['name']);centre(w,app.root,800,520);w.transient(app.root)
     ttk.Label(w,text=preview['name'],style='Title.TLabel',wraplength=760).pack(anchor='w',padx=18,pady=18)
     ttk.Label(w,text=f'{len(preview["edits"])} bank change(s). Only the listed axis bytes will change.\nApply changes the project in memory; source files remain untouched.',style='Muted.TLabel').pack(anchor='w',padx=18)
     tree=ttk.Treeview(w,columns=('bank','address','before','after'),show='headings',height=8)
@@ -42,6 +60,7 @@ def show_preview(app,restore=False):
     ttk.Label(w,text='Source port verified at byte level; ECU behaviour requires independent validation.',style='Muted.TLabel').pack(anchor='w',padx=18)
     bar=ttk.Frame(w,padding=18);bar.pack(fill='x')
     def apply():
+        if app.doc is not d:raise ValueError('The active project changed. Review the launch-control operation again.')
         apply_preview(d,preview)
         app.refresh();app.status.set('Solution applied in memory. Review the new map, then verify/correct checksums before separate export.');w.destroy()
     ttk.Button(bar,text='Apply to project',style='Accent.TButton',state='normal' if preview['edits'] else 'disabled',command=lambda:app.run(apply)).pack(side='right')

@@ -2,7 +2,7 @@
 
 Agreed scope: 19 October 2026. Starting release: 0.6.1.
 
-Progress: 0.7 published; 0.8 completed and release-tested. EGR and C166/C167 milestones remain pending. The user selected all-bank DTC toggles with individual controls and a read-only comparison file. Comparison maps also use codeblock/category groups and side-by-side editable/read-only panes.
+Progress: 0.7 published; 0.8 completed and release-tested. 0.9 adds a bounded FJ/1376 EGR solution; additional profiles need evidence. C166/C167 milestones remain pending. The user selected all-bank DTC toggles with individual controls and a read-only comparison file. Comparison maps also use codeblock/category groups and side-by-side editable/read-only panes.
 
 ## Working rules
 
@@ -60,11 +60,13 @@ Progress: 0.7 published; 0.8 completed and release-tested. EGR and C166/C167 mil
 
 ## Research references
 
+`C166-RESEARCH.md` records completed primary-source research, the recommended AS engine and verified decoder defects; the implementation milestones above remain pending.
+
 - Infineon C166 Family Instruction Set Manual, V2.0: https://www.keil.com/dd/docs/datashts/infineon/c166ism.pdf — instruction encoding, device differences and addressing rules.
 - Python C166 decoder candidate: https://github.com/ayyo42069/c166-disasm-plugin — GPL claim in source; standalone decoder without IDA imports is available. Verify source/table provenance before incorporation.
 - Independent MIT C166/C167 processor module: https://github.com/keyhana/c166-ghidra-module — DPP/EXT handling, processor definitions and analysis reference.
-- Macro Assembler AS candidate: https://github.com/Clownacy/asl-releases — C166 backend and Windows build support; exact licensing/build validation pending.
-- TPASM candidate: https://github.com/SuperIlu/TPASM and its README_C166.TXT — C166 assembly syntax and limitations; exact licensing/build validation pending.
+- Macro Assembler AS candidate: https://github.com/Clownacy/asl-releases — C166 backend and Windows build support; See `C166-RESEARCH.md` for the pinned engine, checked license notices and Windows fixture results.
+- TPASM candidate: https://github.com/SuperIlu/TPASM and its README_C166.TXT — C166 assembly syntax and limitations; See `C166-RESEARCH.md` for the pinned engine, checked license notices and Windows fixture results.
 - Supplied ZedSuite source: English descriptions in `src/lib/ecu/bosch/dtc/translations/en.ts`, bilingual database and system translation helper. Existing source provenance is recorded in OpenCal's notices.
 - Locally reviewed GPL VAG Suite fork: https://github.com/skaldamramra/VAGEDCSuite — `EDC15PTuner.cs` contains an EGR map-edit routine. Its existence is not proof that its strategy applies to every detected map or ECU.
 
