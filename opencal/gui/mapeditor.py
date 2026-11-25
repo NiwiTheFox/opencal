@@ -6,6 +6,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 
 from ..core import maps as M
+from ..core import units as U
 from ..core.ecufile import EcuFile
 from . import theme
 
@@ -51,12 +52,15 @@ class MapModel(QtCore.QAbstractTableModel):
 
     def refresh(self):
         self.beginResetModel()
-        self.vals = self.m.values(self.f.buf)
-        self.orig = self.m.values(self.f.original)
+        self.vc = U.conv(self.m.unit)
+        self.xc = U.conv(self.m.row_axis.unit) if self.m.row_axis else None
+        self.yc = U.conv(self.m.col_axis.unit)
+        self.vals = self.vc.to_shown(self.m.values(self.f.buf))
+        self.orig = self.vc.to_shown(self.m.values(self.f.original))
         rng = (float(np.nanmin(self.vals)), float(np.nanmax(self.vals)))
         self.lo, self.hi = rng if rng[1] > rng[0] else (rng[0] - 1, rng[0] + 1)
-        self.xv = self.m.row_axis.values(self.f.buf) if self.m.row_axis else None
-        self.yv = self.m.col_axis.values(self.f.buf)
+        self.xv = self.xc.to_shown(self.m.row_axis.values(self.f.buf)) if self.m.row_axis else None
+        self.yv = self.yc.to_shown(self.m.col_axis.values(self.f.buf))
         self.endResetModel()
 
     def rowCount(self, parent=QtCore.QModelIndex()):
@@ -121,7 +125,7 @@ class MapModel(QtCore.QAbstractTableModel):
             return False
         new = self.vals.copy()
         new[idx.row(), idx.column()] = v
-        self.f.write_map(self.m, new, f"{self.m.label()}: cell ({idx.row()},{idx.column()}) = {v:g}")
+        self.f.write_map(self.m, self.vc.to_native(new), f"{self.m.label()}: cell ({idx.row()},{idx.column()}) = {v:g} {self.vc.shown}")
         return True
 
 
@@ -135,9 +139,10 @@ class AxisDialog(QtWidgets.QDialog):
         for ax, label in ((m.row_axis, "Rows"), (m.col_axis, "Columns")):
             if ax is None:
                 continue
-            le = QtWidgets.QLineEdit(" ".join(f"{v:g}" for v in ax.values(f.buf)))
+            c = U.conv(ax.unit)
+            le = QtWidgets.QLineEdit(" ".join(f"{v:g}" for v in c.to_shown(ax.values(f.buf))))
             shared = sum(1 for o in f.maps if (o.x.address == ax.address) or (o.y and o.y.address == ax.address))
-            lay.addRow(f"{label}: {ax.name or 'axis'} [{ax.unit}] (shared by {shared} maps)", le)
+            lay.addRow(f"{label}: {ax.name or 'axis'} [{c.shown}] (shared by {shared} maps)", le)
             self.edits.append((ax, le))
         bb = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
         bb.accepted.connect(self.apply)
@@ -158,7 +163,7 @@ class AxisDialog(QtWidgets.QDialog):
                 if not (np.all(np.diff(vals) >= 0) or np.all(np.diff(vals) <= 0)):
                     QtWidgets.QMessageBox.warning(self, "Axes", "Breakpoints must be in order.")
                     return
-                raw = ax.to_raw(vals)
+                raw = ax.to_raw(U.conv(ax.unit).to_native(np.asarray(vals, float)))
                 tx.write(ax.address, (raw & 0xFFFF).astype("<u2").tobytes(), "axis edited")
         self.accept()
 
@@ -274,9 +279,9 @@ class MapEditor(QtWidgets.QWidget):
         if m.codeblock is not None:
             out.append(f"codeblock {m.codeblock}")
         if m.row_axis is not None:
-            out.append(f"rows: {m.row_axis.name or 'axis'} {m.row_axis.unit}".strip())
-        out.append(f"cols: {m.col_axis.name or 'axis'} {m.col_axis.unit}".strip())
-        out.append(m.unit or "raw")
+            out.append(f"rows: {m.row_axis.name or 'axis'} {U.conv(m.row_axis.unit).shown}".strip())
+        out.append(f"cols: {m.col_axis.name or 'axis'} {U.conv(m.col_axis.unit).shown}".strip())
+        out.append(U.conv(m.unit).shown or "raw")
         return out
 
     def describe(self) -> str:
@@ -338,8 +343,8 @@ class MapEditor(QtWidgets.QWidget):
                            symbolBrush=c, symbolPen=None, name=name if n <= 16 else None)
             if not np.array_equal(vals[i], self.model.orig[i]):
                 self.plot.plot(xs, self.model.orig[i], pen=pg.mkPen(c, width=1, style=Qt.DashLine))
-        self.plot.setLabel("bottom", f"{self.m.col_axis.name} {self.m.col_axis.unit}")
-        self.plot.setLabel("left", self.m.unit or "value")
+        self.plot.setLabel("bottom", f"{self.m.col_axis.name} {self.model.yc.shown}")
+        self.plot.setLabel("left", self.model.vc.shown or "value")
 
     # -------------------------------------------------------- selection --
     def selected(self) -> list[tuple[int, int]]:
@@ -354,7 +359,7 @@ class MapEditor(QtWidgets.QWidget):
         vals = self.model.vals.copy()
         new = fn(vals, cells)
         if new is not None:
-            self.f.write_map(self.m, new, f"{self.m.label()}: {note} ({len(cells)} cells)")
+            self.f.write_map(self.m, self.model.vc.to_native(new), f"{self.m.label()}: {note} ({len(cells)} cells)")
             self.status.emit(f"{note}: {len(cells)} cells")
 
     def apply_op(self):
@@ -426,7 +431,7 @@ class MapEditor(QtWidgets.QWidget):
         if h <= 0 or w <= 0:
             return
         v[r0:r0 + h, c0:c0 + w] = block[:h, :w]
-        self.f.write_map(self.m, v, f"{self.m.label()}: pasted {h}×{w}")
+        self.f.write_map(self.m, self.model.vc.to_native(v), f"{self.m.label()}: pasted {h}×{w}")
 
     def restore(self):
         self.f.restore_map(self.m)
@@ -440,7 +445,7 @@ class MapEditor(QtWidgets.QWidget):
             k = ev.key()
             step = {Qt.Key_Plus: 1, Qt.Key_Minus: -1, Qt.Key_PageUp: 10, Qt.Key_PageDown: -10}.get(k)
             if step is not None and ev.modifiers() in (Qt.NoModifier, Qt.KeypadModifier):
-                unit = abs(self.m.factor) or 1
+                unit = (abs(self.m.factor) or 1) / self.model.vc.f
                 self._apply(lambda v, cells: _bump(v, cells, step * unit), f"{'+' if step > 0 else ''}{step} step")
                 return True
             if ev.matches(QtGui.QKeySequence.Copy):

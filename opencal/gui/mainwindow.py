@@ -12,7 +12,9 @@ from ..core import dtc as D
 from ..core import mappack as MP
 from ..core import patterns as P
 from ..core import tuning as T
-from ..core.ecufile import EcuFile, EcuFileError
+from ..core import units as U
+from ..core import checksum as CK
+from ..core.ecufile import ChecksumLayoutUnknown, EcuFile, EcuFileError
 from ..core.project import DEFAULT_ROOT, Project
 from . import dialogs as dlg
 from . import theme
@@ -25,6 +27,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QtCore.QSettings("OpenCal", "OpenCal")
+        U.load(self.settings)
         self.f: EcuFile | None = None
         self.project: Project | None = None
         self.resize(1400, 860)
@@ -167,6 +170,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._act(m, "Firmware info", self.show_info, "Ctrl+I")
         self._act(m, "Verify checksums", self.verify_checksums)
         self._act(m, "Fix checksums", self.fix_checksums)
+        self._act(m, "Checksum layout…", self.checksum_layout)
         self._act(m, "Safe to flash? (pre-flash check)", self.preflash, "F9")
         m.addSeparator()
         self._act(m, "Changed maps", self.changed)
@@ -195,6 +199,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         m = mb.addMenu("E&CU")
         self._act(m, "K-line diagnostics, faults and live data…", self.ecu, needs_file=False)
+
+        m = mb.addMenu("&Options")
+        self._act(m, "Units (bar, kW, Nm, °F…)…", self.units_dialog, needs_file=False)
+        a = m.addAction("Always fix checksums on save")
+        a.setCheckable(True)
+        a.setChecked(self.settings.value("fix_checksums", True, type=bool))
+        a.toggled.connect(lambda on: self.settings.setValue("fix_checksums", on))
 
         m = mb.addMenu("&Help")
         self._act(m, "About", self.about, needs_file=False)
@@ -233,14 +244,18 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self._confirm_discard():
             return
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open ECU file", self.settings.value("lastdir", ""),
-                                                        "ECU firmware (*.bin *.ori *.mod);;All files (*)")
+                                                        "ECU files (*.bin *.ori *.mod *.e2p *.eep);;ECU firmware (*.bin *.ori *.mod);;EEPROM (*.e2p *.eep *.bin);;All files (*)")
         if path:
             self.load(path)
 
     def load(self, path, project: Project | None = None):
+        if os.path.getsize(path) <= 4096 or path.lower().endswith((".e2p", ".eep")):
+            dlg.EepromDialog(path, self).exec()
+            return
         f = EcuFile.load(path)
         if project is not None:
             f.original = open(project.original_path, "rb").read()
+            f.checksum_layout = CK.strict_layout(f.original) or f.checksum_layout
             f.path = None
         self.f, self.project = f, project
         f.listeners.append(lambda _f: self._on_change())
@@ -294,9 +309,51 @@ class MainWindow(QtWidgets.QMainWindow):
         if path:
             self._do_save(path)
 
+    def choose_checksum_layout(self) -> bool:
+        """Ask which checksum algorithm to use when the loaded file did not verify."""
+        reps = CK.candidates(self.f.original)
+        items = [f"{r.layout}: {r.n_ok} of {r.n_total} blocks verified in the file as opened" for r in reps]
+        items.append("Save without correcting checksums")
+        item, ok = QtWidgets.QInputDialog.getItem(
+            self, "Checksum layout uncertain",
+            "This file's checksums were already wrong when it was opened, so OpenCal cannot tell which\n"
+            "algorithm the ECU uses. Pick the layout of a known-good file of the same software\n"
+            "(another read of the same software number that verified).", items, 0, False)
+        if not ok:
+            return False
+        if item.startswith("Save without"):
+            self._skip_fix_once = True
+            return True
+        self.f.set_checksum_layout(item.split(":")[0])
+        self._on_change()
+        return True
+
+    def _fix_or_ask(self):
+        if self.f.checksum_uncertain and not getattr(self, "_skip_fix_once", False):
+            if not self.choose_checksum_layout():
+                raise EcuFileError("Cancelled: checksum layout not chosen.")
+        if self.f.checksum_layout is None:
+            self._skip_fix_once = False
+            return self.f.checksum()
+        return self.f.fix_checksums()
+
+    def checksum_layout(self):
+        if self.choose_checksum_layout():
+            self.status.showMessage(f"Checksum layout: {self.f.checksum_layout or 'not corrected'}", 6000)
+
     def _do_save(self, path):
         always = self.settings.value("fix_checksums", True, type=bool)
-        rep = self.f.save(path, fix_checksums=always)
+        if getattr(self, "_skip_fix_once", False):
+            always = False
+        try:
+            rep = self.f.save(path, fix_checksums=always)
+        except ChecksumLayoutUnknown:
+            if not self.choose_checksum_layout():
+                return
+            return self._do_save(path)
+        finally:
+            pass
+        self._skip_fix_once = False
         self.f.history.clear()
         self.status.showMessage(f"Saved {path}" + (f" · {rep.summary()}" if rep else ""), 8000)
         self._update_title()
@@ -351,7 +408,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 continue
             if not m.is3d and not m.identified and m.category == "Unidentified":
                 continue
-            label = m.label()
+            label = m.label() + (f"  · CB {m.codeblock}" if m.codeblock is not None else f"  · bank {m.bank >> 16:X}")
             if q and q not in label.lower() and q not in m.key.lower():
                 continue
             it = QtWidgets.QTreeWidgetItem([label, f"{m.address:05X}"])
@@ -544,7 +601,7 @@ class MainWindow(QtWidgets.QMainWindow):
             fh.write(self.f.original)
         p = Project.create(tmp, self.settings.value("project_root", DEFAULT_ROOT), name)
         if self.f.dirty:
-            rep = self.f.fix_checksums()
+            rep = self._fix_or_ask()
             p.add_version(bytes(self.f.buf), "Imported edits", [e.note for e in self.f.history],
                           rep.summary() if rep else "")
         self.project = p
@@ -571,7 +628,7 @@ class MainWindow(QtWidgets.QMainWindow):
         label, ok = QtWidgets.QInputDialog.getText(self, "Save version", "Label (what changed)")
         if not ok:
             return
-        rep = self.f.fix_checksums() if self.settings.value("fix_checksums", True, type=bool) else self.f.checksum()
+        rep = self._fix_or_ask() if self.settings.value("fix_checksums", True, type=bool) else self.f.checksum()
         idx = self.project.add_version(bytes(self.f.buf), label, [e.note for e in self.f.history],
                                        rep.summary() if rep else "")
         self.f.history.clear()
@@ -625,6 +682,10 @@ class MainWindow(QtWidgets.QMainWindow):
                        f"{rows}</table>", self).exec()
 
     def fix_checksums(self):
+        if self.f.checksum_uncertain and not self.choose_checksum_layout():
+            return
+        if self.f.checksum_layout is None:
+            return
         rep = self.f.fix_checksums()
         self.status.showMessage(rep.summary() if rep else "No known checksum layout", 6000)
 
@@ -648,8 +709,15 @@ class MainWindow(QtWidgets.QMainWindow):
         diffs = self.f.changed_maps(other)
         rows = "".join(f"<tr><td>{dlg.esc(m.label())}</td><td>0x{m.address:05X}</td><td>{d:+.1f}%</td></tr>" for m, d in diffs)
         QtWidgets.QMessageBox.information(self, "Compare", f"{len(diffs)} map(s) differ.")
+        from ..core import multimap
+        mm = multimap.describe(self.f, other)
+        patch = multimap.code_patch(self.f, other)
+        code = "".join(f"<li>0x{a:05X}–0x{b:05X} ({b - a} bytes)</li>" for a, b in patch.ranges[:40])
         box = dlg.TextReport(f"Compared with {os.path.basename(path)}",
-                             f"<table cellpadding=3><tr><th>map</th><th>address</th><th>max Δ vs other</th></tr>{rows}</table>", self)
+                             f"<p><b>Banks / code:</b> {dlg.esc(mm)}</p>"
+                             + (f"<p>Code differences (switching patch, rpm cut or similar). OpenCal keeps them "
+                                f"untouched when you edit maps:</p><ul>{code}</ul>" if patch.present else "")
+                             + f"<table cellpadding=3><tr><th>map</th><th>address</th><th>max Δ vs other</th></tr>{rows}</table>", self)
         copy = QtWidgets.QPushButton("Copy every differing map from the other file")
         copy.clicked.connect(lambda: (self._copy_maps(diffs, other), box.accept()))
         box.layout().insertWidget(1, copy)
@@ -676,7 +744,7 @@ class MainWindow(QtWidgets.QMainWindow):
         dlg.TextReport("C166 disassembly (file addresses)", f"<pre>{text}</pre>", self, 760, 640).exec()
 
     def eeprom(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open EEPROM dump (95040)", "", "EEPROM (*.bin *.eep);;All files (*)")
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open EEPROM dump (95040)", "", "EEPROM (*.e2p *.eep *.bin);;All files (*)")
         if path:
             dlg.EepromDialog(path, self).exec()
 
@@ -749,6 +817,25 @@ class MainWindow(QtWidgets.QMainWindow):
     def ecu(self):
         dlg.EcuDialog(self).exec()
 
+    def units_dialog(self):
+        if dlg.UnitsDialog(self).exec():
+            U.save(self.settings)
+            self.refresh_units()
+
+    def refresh_units(self):
+        for i in range(self.tabs.count()):
+            w = self.tabs.widget(i)
+            if isinstance(w, MapEditor):
+                w.reload()
+        if self.f is not None:
+            idx = next((i for i in range(self.tabs.count()) if isinstance(self.tabs.widget(i), OverviewPage)), None)
+            if idx is not None:
+                old = self.tabs.widget(idx)
+                self.tabs.removeTab(idx)
+                old.deleteLater()
+                self.tabs.insertTab(0, OverviewPage(self), "Overview")
+        self.status.showMessage("Units updated", 4000)
+
     def about(self):
         QtWidgets.QMessageBox.about(
             self, f"About {APP_NAME}",
@@ -806,6 +893,12 @@ class DtcDialog(QtWidgets.QDialog):
     def switch(self, enable):
         codes = sorted({self.table.item(i.row(), 0).data(Qt.UserRole) for i in self.table.selectedIndexes()})
         if not codes:
+            return
+        shared = sorted({c for g in D.groups(self.f) if g.vag_code in codes for c in g.shared_with} - set(codes))
+        if shared and QtWidgets.QMessageBox.question(
+                self, "Shared fault path",
+                "These codes share a fault path in this software, so they switch together:\n"
+                + ", ".join(str(c) for c in shared) + "\n\nContinue?") != QtWidgets.QMessageBox.Yes:
             return
         try:
             n = D.set_enabled(self.f, codes, enable)
@@ -935,8 +1028,10 @@ class OverviewPage(QtWidgets.QScrollArea):
                                          "pill-ok" if rep and rep.all_ok else "pill-warn"))]
         for cb in f.codeblocks:
             rows.append((f"Bank 0x{cb.base:05X}", f"codeblock {cb.id} · {cb.gearbox or '?'}" if cb.populated else "empty"))
+        if len(f.populated_banks) > 1:
+            rows.append(("Multimap", f"{len(f.populated_banks)} calibrations · switching code kept as is"))
         for s in P.find_scalars(f.buf)[:2]:
-            rows.append((s.name.split(" (")[0], f"{s.value(f.buf):g} {s.unit}"))
+            rows.append((s.name.split(" (")[0], U.fmt(s.value(f.buf), s.unit) if s.unit else f"{s.value(f.buf):g}"))
         card("Banks & limits", rows, 0, 1)
         bank = f.active_bank
         key = []
@@ -946,7 +1041,7 @@ class OverviewPage(QtWidgets.QScrollArea):
             if m is None:
                 continue
             v = m.values(f.buf)
-            b = QtWidgets.QPushButton(f"peak {v.max():.1f} {m.unit}   ›")
+            b = QtWidgets.QPushButton(f"peak {U.fmt(float(v.max()), m.unit, 1)}   ›")
             theme.role(b, "ghost")
             b.clicked.connect(lambda _=False, k=m.key: win.open_map(k))
             key.append((label, b))
@@ -958,8 +1053,8 @@ class OverviewPage(QtWidgets.QScrollArea):
             if dy:
                 pk = max(dy, key=lambda p: p.power)
                 pt = max(dy, key=lambda p: p.torque)
-                est = [("Peak power (estimate)", f"≈ {pk.power:.0f} hp @ {pk.rpm:.0f} rpm"),
-                       ("Peak torque (estimate)", f"≈ {pt.torque:.0f} Nm @ {pt.rpm:.0f} rpm")]
+                est = [("Peak power (estimate)", f"≈ {U.fmt(pk.power, 'hp')} @ {pk.rpm:.0f} rpm"),
+                       ("Peak torque (estimate)", f"≈ {U.fmt(pt.torque, 'Nm')} @ {pt.rpm:.0f} rpm")]
         except Exception:
             pass
         dyb = QtWidgets.QPushButton("Open virtual dyno   ›")

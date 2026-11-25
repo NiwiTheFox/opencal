@@ -295,6 +295,7 @@ class Rule:
     yaxis: tuple = ("", "", 1.0, 0.0)    # columns
     test: object = None
     numbered: bool = False
+    signed: bool = False
     description: str = ""
 
 
@@ -335,7 +336,7 @@ def is_air(buf, ax) -> bool:
 
 def is_atm(buf, ax) -> bool:
     lo, hi = _rng(buf, ax)
-    return ax.count <= 10 and 550 <= lo and hi <= 1200
+    return ax.count <= 10 and 450 <= lo and hi <= 1200
 
 
 def is_boost(buf, ax) -> bool:
@@ -348,6 +349,12 @@ def is_tempk(buf, ax) -> bool:
     return 2000 <= lo and hi <= 4600 and hi - lo >= 300
 
 
+def _signed_range(buf, m, lo, hi) -> bool:
+    r = np.frombuffer(bytes(buf[m.address:m.end]), "<i2").astype(np.int64)
+    nz = r[r != 0]
+    return nz.size > 0 and lo <= int(nz.min()) and int(nz.max()) <= hi and int(nz.min()) < 0
+
+
 def _t(fn):
     def wrap(buf, m):
         try:
@@ -358,10 +365,14 @@ def _t(fn):
 
 
 RULES: list[Rule] = [
-    Rule("soi", "Start of injection", "Injection", rows=(10, 20), cols=(8, 16), factor=-0.023437,
+    Rule("soi", "Start of injection", "Injection", rows=(10, 20), cols=(8, 16), factor=-0.0234375,
          offset=78, unit="°BTDC", xaxis=RPM, yaxis=IQ, numbered=True,
          test=_t(lambda b, m: m.group is not None and m.rows * m.cols in (224, 208, 192, 160)
                  and is_rpm(b, m.x) and 1500 <= _drange(b, m)[1] <= 4500)),
+    Rule("soi", "Start of injection", "Injection", rows=(10, 20), cols=(8, 16), factor=-0.0234375,
+         offset=0.0, unit="°BTDC", xaxis=RPM, yaxis=IQ, numbered=True, signed=True,
+         test=_t(lambda b, m: m.group is not None and m.rows * m.cols in (224, 208, 192, 160)
+                 and is_rpm(b, m.x) and _signed_range(b, m, -2200, 900))),
     Rule("smoke", "Smoke limiter", "Limiters", rows=(10, 20), cols=(8, 20), factor=0.01, unit="mg/st",
          xaxis=RPM, yaxis=AIR,
          test=_t(lambda b, m: is_rpm(b, m.x) and is_air(b, m.y) and 300 <= _drange(b, m)[1] <= 12000),
@@ -396,15 +407,15 @@ RULES: list[Rule] = [
                  and 3000 <= _drange(b, m)[1] <= 9000 and _drange(b, m)[0] >= 1000)),
     Rule("n75", "N75 duty cycle", "Boost", rows=(10, 20), cols=(8, 16), factor=-0.01, offset=100,
          unit="%", xaxis=RPM, yaxis=IQ,
-         test=_t(lambda b, m: is_rpm(b, m.x) and (m.y.id >> 8) in (0xEA, 0xE9) and _drange(b, m)[1] <= 10000
-                 and _drange(b, m)[1] >= 3000 and _drange(b, m)[0] < 1000)),
-    Rule("duration", "Injection duration", "Injection", rows=(8, 20), cols=(8, 20), factor=0.023437,
-         unit="°CA", xaxis=IQ, yaxis=RPM, numbered=True,
+         test=_t(lambda b, m: is_rpm(b, m.x) and (m.y.id >> 8) == 0xEA and 3000 <= _drange(b, m)[1] <= 10000
+                 and m.rows >= 12)),
+    Rule("duration", "Injection duration", "Injection", rows=(8, 20), cols=(8, 20), factor=0.0234375,
+         unit="°CA", xaxis=IQ, yaxis=RPM, numbered=True, signed=True,
          test=_t(lambda b, m: (m.x.id >> 8) in (0xC4, 0xC5) and is_rpm(b, m.y))),
     Rule("launch", "Launch control map", "Limiters", shape=(25, 14), factor=0.01, unit="mg/st",
          xaxis=RPM, yaxis=SPEED),
     Rule("soi_limit", "SOI limiter (temperature)", "Injection", rows=(10, 18), cols=(8, 14),
-         factor=-0.023437, offset=78, unit="°BTDC", xaxis=RPM, yaxis=TEMPK,
+         factor=-0.0234375, offset=78, unit="°BTDC", xaxis=RPM, yaxis=TEMPK,
          test=_t(lambda b, m: is_rpm(b, m.x) and is_tempk(b, m.y) and m.group is None
                  and 1500 <= _drange(b, m)[1] <= 4500)),
     Rule("boost_temp", "Boost correction by temperature", "Boost", rows=(8, 20), cols=(6, 14),
@@ -416,7 +427,7 @@ RULES: list[Rule] = [
          test=_t(lambda b, m: not m.is3d and m.x.id in (0xEBA2, 0xEBA4, 0xE9BC))),
     Rule("start_iq", "Start IQ", "Misc", rows=(6, 12), cols=(6, 12), factor=0.01, unit="mg/st",
          xaxis=RPM, yaxis=TEMPK, numbered=True,
-         test=_t(lambda b, m: is_rpm(b, m.x) and (m.y.id >> 8) == 0xC1 and _drange(b, m)[1] <= 9000)),
+         test=_t(lambda b, m: is_rpm(b, m.x) and (m.y.id >> 8) == 0xC1 and 1500 <= _drange(b, m)[1] <= 9000)),
 ]
 
 
@@ -434,6 +445,7 @@ def apply_rule(r: Rule, m: Map, name: str) -> None:
     m.category = r.category
     m.description = r.description
     m.factor, m.offset, m.unit = r.factor, r.offset, r.unit
+    m.signed = r.signed
     for ax, spec in ((m.x, r.xaxis), (m.y, r.yaxis)):
         if ax is None or not spec[0]:
             continue

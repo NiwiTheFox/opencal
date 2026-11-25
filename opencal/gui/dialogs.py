@@ -1,6 +1,7 @@
 """Dialogs for tools, calculators, EEPROM, hex, ECU."""
 from __future__ import annotations
 
+import os
 import time
 
 import numpy as np
@@ -12,6 +13,7 @@ from ..core import kline as K
 from ..core import logs as L
 from ..core import patterns as P
 from ..core import tuning as T
+from ..core import units as U
 from ..core.ecufile import EcuFile, EcuFileError
 from ..core.eeprom import Eeprom, EepromError
 
@@ -281,8 +283,9 @@ class EepromDialog(QtWidgets.QDialog):
         except EepromError as e:
             QtWidgets.QMessageBox.warning(self, "EEPROM", str(e))
             return
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save EEPROM", self.ee.path.replace(".bin", "_mod.bin"),
-                                                        "EEPROM (*.bin *.eep)")
+        stem, ext = os.path.splitext(self.ee.path)
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save EEPROM", f"{stem}_mod{ext or '.e2p'}",
+                                                        "EEPROM (*.e2p *.eep *.bin)")
         if path:
             self.ee.save(path)
             super().accept()
@@ -378,7 +381,7 @@ class CalcDialog(QtWidgets.QDialog):
             e = self.spec()
             air = C.air_mg_per_stroke(self.boost.value(), e)
             t = C.charge_temp_c(self.boost.value(), e)
-            out.setText(f"Charge {t:.0f} °C · air {air:.0f} mg/st · AFR {C.afr(air, self.iq.value()):.1f}:1 · "
+            out.setText(f"Charge {U.fmt(t, '°C')} · air {air:.0f} mg/st · AFR {C.afr(air, self.iq.value()):.1f}:1 · "
                         f"λ {C.lam(air, self.iq.value()):.2f}\nFuel at λ 1.20: {C.iq_for_lambda(air, 1.2):.1f} mg · "
                         f"at λ 1.30: {C.iq_for_lambda(air, 1.3):.1f} mg")
         for s in (self.boost, self.iq, self.disp, self.cyl, self.ve, self.amb):
@@ -400,7 +403,7 @@ class CalcDialog(QtWidgets.QDialog):
 
         def calc():
             t = iq.value() * k.value()
-            out.setText(f"≈ {t:.0f} Nm · {C.power_hp(t, rpm.value()):.0f} hp ({C.power_hp(t, rpm.value()) * 0.7355:.0f} kW)")
+            out.setText(f"≈ {U.fmt(t, 'Nm')} · {U.fmt(C.power_hp(t, rpm.value()), 'hp')}")
         for s in (iq, rpm, k):
             s.valueChanged.connect(calc)
         calc()
@@ -478,65 +481,186 @@ class CalcDialog(QtWidgets.QDialog):
 # ------------------------------------------------------------------ dyno --
 
 class DynoDialog(QtWidgets.QDialog):
+    """Virtual dyno: simulated start and full-load pull, animated."""
+
     def __init__(self, f: EcuFile, parent=None):
         super().__init__(parent)
+        from ..core import sim as S
+        self.S = S
         self.f = f
-        self.setWindowTitle("Virtual dyno (estimate)")
-        self.resize(860, 560)
+        self.setWindowTitle("Virtual dyno — start and pull simulation")
+        self.resize(1100, 760)
         v = QtWidgets.QVBoxLayout(self)
-        h = QtWidgets.QHBoxLayout()
+
+        form = QtWidgets.QHBoxLayout()
         self.bank = QtWidgets.QComboBox()
-        for cb in f.populated_banks:
-            self.bank.addItem(f"codeblock {cb.id}", cb.base)
+        for i, cb in enumerate(f.populated_banks):
+            self.bank.addItem(f"Map {i + 1} · CB {cb.id}", cb.base)
         self.bank.setCurrentIndex(max(self.bank.findData(f.active_bank), 0))
+        self.temp = self._spin(85, -25, 110, " °C coolant")
+        self.gear = QtWidgets.QDoubleSpinBox(); self.gear.setRange(0.5, 4.0); self.gear.setDecimals(3); self.gear.setValue(1.39)
+        self.gear.setPrefix("gear ")
+        self.mass = self._spin(1350, 700, 2500, " kg")
         self.k = QtWidgets.QDoubleSpinBox(); self.k.setRange(2, 10); self.k.setValue(5.3); self.k.setPrefix("Nm/mg ")
-        self.cmp = QtWidgets.QCheckBox("show original")
-        self.cmp.setChecked(True)
-        for w in (self.bank, self.k, self.cmp):
-            h.addWidget(w)
-            (w.currentIndexChanged if isinstance(w, QtWidgets.QComboBox) else
-             w.valueChanged if isinstance(w, QtWidgets.QDoubleSpinBox) else w.toggled).connect(self.run)
-        h.addStretch()
-        v.addLayout(h)
-        v.addWidget(QtWidgets.QLabel("Full load from the calibration: per rpm the lowest of driver wish, torque limiter "
-                                     "and smoke limiter (at the boost target's airflow). An estimate, not a measurement."))
+        self.r0 = self._spin(1250, 800, 3000, " rpm start")
+        self.r1 = self._spin(4500, 2500, 5500, " rpm end")
+        self.speed = QtWidgets.QComboBox(); self.speed.addItems(["real time", "2× speed", "8× speed", "instant"])
+        self.speed.setCurrentIndex(1)
+        run = QtWidgets.QPushButton("▶  Start engine and pull")
+        run.setProperty("role", "primary")
+        run.clicked.connect(self.run)
+        for w in (self.bank, self.temp, self.gear, self.mass, self.k, self.r0, self.r1, self.speed, run):
+            form.addWidget(w)
+        v.addLayout(form)
+
+        gauges = QtWidgets.QHBoxLayout()
+        self.g = {}
+        for key, title in (("phase", "Phase"), ("rpm", "Engine speed"), ("speed", "Road speed"), ("boost", "Boost"),
+                           ("iq", "Fuel"), ("lam", "Lambda"), ("lim", "Fuel set by")):
+            box = QtWidgets.QFrame(objectName="Card")
+            bl = QtWidgets.QVBoxLayout(box)
+            bl.setContentsMargins(12, 6, 12, 8)
+            t = QtWidgets.QLabel(title)
+            t.setStyleSheet("color:#8b94a3; font-size:9pt")
+            val = QtWidgets.QLabel("—")
+            val.setStyleSheet("font-size:17pt; font-weight:600")
+            bl.addWidget(t)
+            bl.addWidget(val)
+            gauges.addWidget(box)
+            self.g[key] = val
+        v.addLayout(gauges)
+
+        self.tabs = QtWidgets.QTabWidget()
+        v.addWidget(self.tabs, 1)
         if pg is not None:
-            self.plot = pg.PlotWidget()
-            self.plot.showGrid(x=True, y=True, alpha=0.25)
-            self.plot.addLegend()
-            v.addWidget(self.plot, 1)
-        self.table = QtWidgets.QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["rpm", "IQ", "boost", "Nm", "hp", "limited by"])
-        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
-        self.table.setMaximumHeight(200)
-        v.addWidget(self.table)
-        self.run()
+            self.p_curve = pg.PlotWidget(title="Torque (Nm) and power (hp) vs rpm")
+            self.p_curve.showGrid(x=True, y=True, alpha=0.25)
+            self.p_curve.addLegend()
+            self.tabs.addTab(self.p_curve, "Power curve")
+            trace = pg.GraphicsLayoutWidget()
+            self.p_rpm = trace.addPlot(title="Engine speed (rpm)")
+            trace.nextRow()
+            self.p_boost = trace.addPlot(title="Boost actual / target (mbar)")
+            trace.nextRow()
+            self.p_iq = trace.addPlot(title="Fuel (mg/st) and lambda ×10")
+            for p in (self.p_rpm, self.p_boost, self.p_iq):
+                p.showGrid(x=True, y=True, alpha=0.25)
+            self.p_boost.setXLink(self.p_rpm)
+            self.p_iq.setXLink(self.p_rpm)
+            self.tabs.addTab(trace, "Run trace")
+        self.events = QtWidgets.QTextBrowser()
+        self.tabs.addTab(self.events, "Events")
+        self.timer = QtCore.QTimer(self)
+        self.timer.timeout.connect(self._tick)
+        self.res = None
+        self.ref = None
+        self.i = 0
+
+    def _spin(self, val, lo, hi, suf):
+        s = QtWidgets.QSpinBox()
+        s.setRange(lo, hi)
+        s.setValue(val)
+        s.setSuffix(suf)
+        return s
+
+    def params(self):
+        S = self.S
+        e = C.EngineSpec(nm_per_mg=self.k.value())
+        car = S.Car(mass_kg=self.mass.value(), gear_ratio=self.gear.value())
+        return S.SimParams(coolant_c=self.temp.value(), start_rpm=self.r0.value(), end_rpm=self.r1.value(),
+                           engine=e, car=car)
 
     def run(self):
-        e = C.EngineSpec(nm_per_mg=self.k.value())
-        pts = C.virtual_dyno(self.f, self.bank.currentData(), e)
-        self.table.setRowCount(0)
-        for p in pts:
-            r = self.table.rowCount()
-            self.table.insertRow(r)
-            for c, val in enumerate((f"{p.rpm:.0f}", f"{p.iq:.1f}", f"{p.boost:.0f}", f"{p.torque:.0f}",
-                                     f"{p.power:.0f}", p.limiter)):
-                self.table.setItem(r, c, QtWidgets.QTableWidgetItem(val))
+        p = self.params()
+        self.res = self.S.simulate(self.f, self.bank.currentData(), p)
+        orig = EcuFile(self.f.original)
+        base = self.bank.currentData()
+        self.ref = self.S.simulate(orig, base if any(c.base == base for c in orig.populated_banks) else orig.active_bank, p)
+        self.i = 0
+        if pg is not None:
+            for pl in (self.p_curve, self.p_rpm, self.p_boost, self.p_iq):
+                pl.clear()
+            ref = [s for s in self.ref.samples if s.phase == "pull"]
+            if ref:
+                tq, pw = U.conv("Nm"), U.conv("hp")
+                self.p_curve.plot([s.rpm for s in ref], [tq.to_shown(s.torque) for s in ref],
+                                  pen=pg.mkPen("#3d8bfd", width=1, style=Qt.DashLine), name=f"original {tq.shown}")
+                self.p_curve.plot([s.rpm for s in ref], [pw.to_shown(s.power) for s in ref],
+                                  pen=pg.mkPen("#ef5350", width=1, style=Qt.DashLine), name=f"original {pw.shown}")
+            self.p_curve.setTitle(f"Torque ({U.conv('Nm').shown}) and power ({U.conv('hp').shown}) vs rpm")
+            self.p_boost.setTitle(f"Boost actual / target ({U.conv('mbar').shown})")
+            self.p_iq.setTitle(f"Fuel ({U.conv('mg/st').shown}) and lambda x10")
+            self.c_t = self.p_curve.plot([], [], pen=pg.mkPen("#3d8bfd", width=3), name=f"Torque {U.conv('Nm').shown}")
+            self.c_p = self.p_curve.plot([], [], pen=pg.mkPen("#ef5350", width=3), name=f"Power {U.conv('hp').shown}")
+            self.c_rpm = self.p_rpm.plot([], [], pen=pg.mkPen("#e3e6eb", width=2))
+            self.c_bt = self.p_boost.plot([], [], pen=pg.mkPen("#8b94a3", width=1, style=Qt.DashLine))
+            self.c_b = self.p_boost.plot([], [], pen=pg.mkPen("#7fd6ff", width=2))
+            self.c_iq = self.p_iq.plot([], [], pen=pg.mkPen("#f2b33d", width=2))
+            self.c_l = self.p_iq.plot([], [], pen=pg.mkPen("#38c172", width=1))
+        mode = self.speed.currentIndex()
+        if mode == 3:
+            self.i = len(self.res.samples)
+            self._draw()
+            self._finish()
+        else:
+            self.step = {0: 1, 1: 2, 2: 8}[mode]
+            self.timer.start(int(self.S.DT * 1000))
+
+    def _tick(self):
+        self.i = min(self.i + self.step, len(self.res.samples))
+        self._draw()
+        if self.i >= len(self.res.samples):
+            self.timer.stop()
+            self._finish()
+
+    def _draw(self):
+        ss = self.res.samples[:self.i]
+        if not ss:
+            return
+        s = ss[-1]
+        self.g["phase"].setText("starting" if s.phase == "start" else "pull")
+        self.g["rpm"].setText(f"{s.rpm:,.0f}")
+        self.g["speed"].setText(U.fmt(s.speed_kmh, "km/h"))
+        self.g["boost"].setText(U.fmt(s.boost, "mbar"))
+        self.g["iq"].setText(U.fmt(s.iq, "mg/st", 1))
+        lam = s.lam if s.lam != float('inf') else 0
+        self.g["lam"].setText(f"{lam:.2f}" if lam else "—")
+        self.g["lam"].setStyleSheet("font-size:17pt; font-weight:600; color:%s" % ("#ef5350" if 0 < lam < 1.15 else "#e3e6eb"))
+        self.g["lim"].setText(s.limiter)
         if pg is None:
             return
-        self.plot.clear()
-        rp = [p.rpm for p in pts]
-        self.plot.plot(rp, [p.torque for p in pts], pen=pg.mkPen("#4aa3ff", width=3), name="Torque Nm")
-        self.plot.plot(rp, [p.power for p in pts], pen=pg.mkPen("#ff6b4a", width=3), name="Power hp")
-        if self.cmp.isChecked():
-            orig = EcuFile(self.f.original)
-            po = C.virtual_dyno(orig, orig.active_bank, e)
-            self.plot.plot([p.rpm for p in po], [p.torque for p in po], pen=pg.mkPen("#4aa3ff", width=1, style=Qt.DashLine), name="original Nm")
-            self.plot.plot([p.rpm for p in po], [p.power for p in po], pen=pg.mkPen("#ff6b4a", width=1, style=Qt.DashLine), name="original hp")
-        if pts:
-            pk = max(pts, key=lambda p: p.power)
-            pt = max(pts, key=lambda p: p.torque)
-            self.setWindowTitle(f"Virtual dyno — ≈{pk.power:.0f} hp @ {pk.rpm:.0f}, {pt.torque:.0f} Nm @ {pt.rpm:.0f}")
+        t = [x.t for x in ss]
+        pull = [x for x in ss if x.phase == "pull"]
+        tq, pw = U.conv("Nm"), U.conv("hp")
+        self.c_t.setData([x.rpm for x in pull], [tq.to_shown(x.torque) for x in pull])
+        self.c_p.setData([x.rpm for x in pull], [pw.to_shown(x.power) for x in pull])
+        self.c_rpm.setData(t, [x.rpm for x in ss])
+        bc, fc = U.conv("mbar"), U.conv("mg/st")
+        self.c_b.setData(t, [bc.to_shown(x.boost) for x in ss])
+        self.c_bt.setData(t, [bc.to_shown(x.boost_target) for x in ss])
+        self.c_iq.setData(t, [fc.to_shown(x.iq) for x in ss])
+        self.c_l.setData(t, [min(x.lam, 3) * 10 if x.lam != float('inf') else 0 for x in ss])
+
+    def _finish(self):
+        color = {"ok": "#38c172", "info": "#8b94a3", "warning": "#f2b33d", "error": "#ef5350"}
+        html = "".join(f"<p><span style='color:{color[e.level]}'>●</span> <b>{e.t:5.2f} s</b> &nbsp;{esc(e.text)}</p>"
+                       for e in self.res.events)
+        if self.ref and self.ref.peak_power and self.res.peak_power:
+            html += (f"<hr><p>This map: ≈{U.fmt(self.res.peak_power.power, 'hp')} @ {self.res.peak_power.rpm:.0f} rpm, "
+                     f"{U.fmt(self.res.peak_torque.torque, 'Nm')} @ {self.res.peak_torque.rpm:.0f} rpm<br>"
+                     f"Original: ≈{U.fmt(self.ref.peak_power.power, 'hp')}, {U.fmt(self.ref.peak_torque.torque, 'Nm')}"
+                     + (f", pull {self.ref.pull_time:.2f} s" if self.ref.pull_time else "") + "</p>")
+        html += "<p style='color:#8b94a3'>Estimate from the calibration tables only: no engine physics beyond a simple turbo lag and vehicle model.</p>"
+        self.events.setHtml(html)
+        pk = self.res.peak_power
+        if pk:
+            self.setWindowTitle(f"Virtual dyno — ≈{U.fmt(pk.power, 'hp')} @ {pk.rpm:.0f}, "
+                                f"{U.fmt(self.res.peak_torque.torque, 'Nm')} @ {self.res.peak_torque.rpm:.0f}"
+                                + (f", pull {self.res.pull_time:.2f} s" if self.res.pull_time else ""))
+
+    def closeEvent(self, e):
+        self.timer.stop()
+        super().closeEvent(e)
 
 
 # ---------------------------------------------------------- log overlay --
@@ -763,4 +887,31 @@ class MapSensorDialog(QtWidgets.QDialog):
         except EcuFileError as e:
             QtWidgets.QMessageBox.warning(self, "MAP sensor", str(e))
             return
+        super().accept()
+
+
+class UnitsDialog(QtWidgets.QDialog):
+    """Choose display units; tables keep their native scaling in the file."""
+
+    LABELS = {"pressure": "Pressure", "power": "Power", "torque": "Torque", "temperature": "Temperature",
+              "speed": "Road speed", "fuel": "Fuel quantity"}
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Units")
+        form = QtWidgets.QFormLayout(self)
+        form.addRow(QtWidgets.QLabel("Shown in tables, axes, editing, dyno and calculators.\n"
+                                     "The file is unchanged: values convert on display and on entry."))
+        self.boxes = {}
+        for fam, spec in U.FAMILIES.items():
+            cb = QtWidgets.QComboBox()
+            cb.addItems(list(spec["choices"]))
+            cb.setCurrentText(U.choice(fam))
+            form.addRow(self.LABELS[fam], cb)
+            self.boxes[fam] = cb
+        form.addRow(_bb(self, "Apply"))
+
+    def accept(self):
+        for fam, cb in self.boxes.items():
+            U.set_choice(fam, cb.currentText())
         super().accept()

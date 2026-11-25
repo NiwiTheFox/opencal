@@ -1,5 +1,7 @@
 # OpenCal 2
 
+*Current: 2.1.0 pre-release. Tested against 93 real EDC15P reads.*
+
 **Free, offline calibration editor for Bosch EDC15P/V diesel ECUs (VAG 1.9 / 2.0 TDI PD).**
 Open a read, find the maps, tune them, check the result and save a flash-ready file with corrected
 checksums. No account, no tokens, no ECU locking.
@@ -36,8 +38,9 @@ choose **More info › Run anyway**.
 - Hex viewer with changes highlighted, C166/C167 disassembly.
 
 **Checks and saving**
-- Checksums for the standard V4.1 layouts (tdi41, tdi41 v2, 2002), verified on load and
-  corrected on save. Arithmetic is tested against independently compiled vectors.
+- Checksums for the standard V4.1 layouts (tdi41, tdi41 v2, 2002), locked from the file as
+  opened and corrected on save. A file that arrives with wrong checksums is never corrected by
+  guesswork: OpenCal asks which layout to use. Arithmetic is tested against independent vectors.
 - *Safe to flash?* pre-flash check: checksums, empty maps in a bank, boost above the MAP-sensor
   range, boost limit/SVBL below target, smoke limiter effectively off, late end of injection.
 - Projects: every saved version kept next to the untouched original, with notes and ZIP backup.
@@ -51,16 +54,21 @@ choose **More info › Run anyway**.
 - **EGR off** (race/off-road), optionally with the four EGR fault codes.
 - Duplicate smoke limiter, activate launch control (experimental), SVBL and MAP/MAF switch,
   MAP-sensor linearisation from a datasheet's two points.
-- **EEPROM editor** (95040 dump): immobiliser on/off, VIN, immobiliser ID, login code, mileage.
+- **EEPROM editor** (95040 `.e2p` dump): immobiliser on/off, VIN, immobiliser ID, login code, mileage.
+- **Multimap aware**: every map shows its codeblock; switching patches (cruise control, pedal) in
+  the code area are detected against a stock read and never touched by map edits.
 
 **Calculators and analysis**
 - AFR / lambda from boost, power and torque estimate, end of injection (SOI − duration),
   turbo compressor fit (approximate envelopes).
-- **Virtual dyno**: full-load torque and power estimated from the limiters, compared with the original.
+- **Virtual dyno**: simulates the engine starting and a full-load pull through the calibration:
+  turbo spool, the limiter that sets fuel at each moment, smoke, overboost/limp, rpm limit,
+  power curve against the original. Animated, with a run trace and event log.
+- **Units** of your choice: bar/mbar/kPa/psi, kW/hp/PS, Nm/lb-ft, °C/°F, km/h/mph.
 - **Datalog analysis**: VCDS CSV and generic CSV, logged samples binned onto any map.
 
 **ECU (K-line)**
-- KKL / FTDI cable: identification, read and clear fault codes, live measuring blocks with CSV logging.
+- KKL / FTDI serial cable (MPPS and HEX-V2 interfaces are not supported): identification, read and clear fault codes, live measuring blocks with CSV logging.
   A built-in simulator lets you try it without a car.
 - Flash read/write and live tuning are **not** in 2.0. Use your flasher (MPPS, Galletto…) to read and write.
 

@@ -267,6 +267,9 @@ class Finding:
 def preflash_check(f: EcuFile) -> list[Finding]:
     out: list[Finding] = []
     rep = f.checksum()
+    if getattr(f, "checksum_uncertain", False):
+        out.append(Finding("warning", "Checksums did not verify when this file was opened: the layout the ECU uses "
+                                      "is uncertain. Choose it in Actions › Checksum layout before saving."))
     if rep is None:
         out.append(Finding("error", "Checksums: no known layout for this ECU. Do not flash."))
     elif not rep.all_ok:

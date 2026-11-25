@@ -254,6 +254,31 @@ def detect(buf) -> ChecksumReport | None:
     return best[1]
 
 
+PREFERENCE = ("tdi41_2002", "tdi41", "tdi41v2")
+
+
+def strict_layout(buf) -> str | None:
+    """The layout every block of ``buf`` already verifies under, or None.
+
+    Use this on the file as loaded: it is the only safe way to know which
+    algorithm the ECU uses. 2002 wins when several fit (it derives its seeds
+    from the code area, as the ECU does).
+    """
+    if len(buf) != 0x80000:
+        return None
+    for name in PREFERENCE:
+        rep = LAYOUTS[name](buf)
+        if rep.n_total and rep.all_ok:
+            return name
+    return None
+
+
+def candidates(buf) -> list[ChecksumReport]:
+    """Every layout with its current fit, best first (for asking the user)."""
+    reps = [LAYOUTS[n](buf) for n in PREFERENCE]
+    return sorted((r for r in reps if r.n_total), key=lambda r: (-r.n_ok / r.n_total, PREFERENCE.index(r.layout)))
+
+
 def verify(buf, layout: str | None = None) -> ChecksumReport | None:
     if layout:
         return LAYOUTS[layout](buf)

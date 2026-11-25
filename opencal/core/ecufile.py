@@ -19,6 +19,10 @@ class EcuFileError(Exception):
     pass
 
 
+class ChecksumLayoutUnknown(EcuFileError):
+    """Raised instead of guessing which checksum algorithm the ECU uses."""
+
+
 @dataclass
 class Codeblock:
     base: int                  # page base (0x50000, 0x60000, 0x70000)
@@ -112,6 +116,9 @@ class EcuFile:
         self.path = path
         self.history: list[Edit] = []
         self.redo_stack: list[Edit] = []
+        # Locked from the file as loaded; None = the original does not fully
+        # verify under any known layout, so correcting needs a user decision.
+        self.checksum_layout: str | None = cks.strict_layout(self.buf)
         self.listeners: list = []
         self.rescan()
 
@@ -159,7 +166,18 @@ class EcuFile:
         return (orig or banks)[-1].base
 
     def checksum(self) -> cks.ChecksumReport | None:
+        if self.checksum_layout:
+            return cks.verify(self.buf, self.checksum_layout)
         return cks.detect(self.buf)
+
+    @property
+    def checksum_uncertain(self) -> bool:
+        return self.checksum_layout is None and len(self.buf) == FLASH_SIZE
+
+    def set_checksum_layout(self, layout: str) -> None:
+        if layout not in cks.LAYOUTS:
+            raise EcuFileError(f"Unknown checksum layout {layout}")
+        self.checksum_layout = layout
 
     @property
     def dirty(self) -> bool:
@@ -219,8 +237,12 @@ class EcuFile:
 
     # ------------------------------------------------------------- saving --
     def fix_checksums(self) -> cks.ChecksumReport | None:
+        if self.checksum_layout is None:
+            raise ChecksumLayoutUnknown(
+                "The checksums of this file did not verify when it was opened, so the layout the ECU uses "
+                "is uncertain. Choose a layout (Actions > Checksums) before correcting.")
         before = bytes(self.buf)
-        rep = cks.fix(self.buf)
+        rep = cks.fix(self.buf, self.checksum_layout)
         if bytes(self.buf) != before:
             after = bytes(self.buf)
             self.buf[:] = before
