@@ -1,25 +1,59 @@
-# OpenCal 1.0.0 — Bundled C166/C167 workspace
+# OpenCal 2.0.0 (pre-release)
 
-Development preview. Extract the complete Windows ZIP and run OpenCal.exe. Python, Tcl/Tk, the decoder and AS assembler tools are included; no separate installation is required.
+A complete rewrite with a new Qt interface. OpenCal 1.x stays available on the
+[`old` branch](https://github.com/NiwiTheFox/opencal/tree/old).
+
+## Download
+
+- `OpenCal-2.0.0-win64.exe`: single self-contained executable, nothing to install.
+- `OpenCal-2.0.0-win64.zip`: portable folder build (faster start). Extract and run `OpenCal.exe`.
+- `SHA256SUMS.txt`: checksums.
+
+The executable is not code-signed; Windows SmartScreen may ask you to confirm (More info › Run anyway).
 
 ## Changes
 
-- Add a far-right **C166 / C167** launcher opening a separate mapped disassembly and source workspace.
-- Display file/CPU addresses, raw bytes, instructions, direct branches, labels and comments. Add range navigation, search, branch follow/back and current-range references.
-- Bundle a hardened GPL decoder and official pinned AS assembler/converter with corresponding source, licenses and build instructions. Fix MOVBS/MOVBZ operand types, extension counts/pages, bit addresses, bitfield order, TRAP, fixed-pattern validation, range truncation and segmented relative targets.
-- Assemble source to a checked contiguous output preview, then apply a bounded overwrite with project/byte/hash/source/mapping guards and one shared Undo operation. Main views update live. Separate checksum correction and BIN export are retained.
-- Save source, CPU, segments and notes inside projects; older projects remain compatible. Keep all 0.9.1 expanded EDC15 layout/checksum/map/DTC features.
+- New interface: header with file identity, codeblock switcher and live checksum status;
+  searchable map sidebar; overview dashboard; heat-coloured map editor with 2D graph and 3D surface.
+- New map discovery: axis-header scanner with map-group/selector parsing, value-range-based
+  identification that works across software versions (axis ids differ per software).
+- Codeblock model: banks span base−0x4000…base+0xC000; ids read from the bank pointer.
+- Checksums: tdi41, tdi41 v2 and 2002 layouts, auto-detected, fixed on save; tested against C# vectors.
+- Editing: set/add/percent/percent-of-original, interpolate, smooth, Excel copy/paste, axis editor,
+  restore original, transactions with one-step undo, change history.
+- Tuning: Auto Stage 1 plan/apply, multimap by coding (fill empty banks, ids), copy/empty/repair bank,
+  DTC disable/enable with exact restore, EGR off (+ EGR fault codes), duplicate smoke limiter,
+  launch-control activation, SVBL, MAP/MAF switch, MAP-sensor linearisation.
+- Checks: *Safe to flash?* pre-flash check.
+- Calculators: AFR/lambda from boost, power/torque, end of injection, turbo compressor fit; virtual dyno.
+- Datalogs: VCDS/generic CSV import and overlay on maps.
+- ECU: K-line KWP2000 diagnostics (identification, fault codes, live measuring blocks, CSV log) and a simulator.
+- EEPROM editor: immobiliser, VIN, immobiliser ID, login code, mileage.
+- Mappacks: TunerPro XDF import/export, OpenCal JSON, ZedSuite/WinOLS JSON import.
+- Projects with versions, notes and ZIP backup.
+- Self-contained Windows executable built by GitHub Actions.
 
-## Validation
+## Known bugs and limits
 
-133 source tests and GUI smoke passed (two environment/private-only checks skipped). C166 tests cover independent encoding/operand fixtures, 34 assembly probes including expected rejection cases, all 65536 first-two-byte combinations for robustness, source restrictions, exact object address coverage, bounds/stale-preview guards, Undo/Redo, project persistence and minimum-window controls. A separate 100-image copied corpus check decoded 139041 rows and applied/undid bounded synthetic NOP patches entirely in memory. No firmware copies were changed on disk. Bundled/runtime and published-download checks are also performed during release.
+- Map names are heuristic. A few secondary tables can be misnamed (for example a second
+  "IQ by MAP limiter" or "N75 duty cycle 2"); always check address, size and values.
+- Only 512 KB EDC15P/V V4.1 layouts are supported for maps and checksums. 256 KB EDC15V files
+  open but have no map identification or checksum support yet.
+- K-line diagnostics have been tested against the simulator only, not on a car yet.
+- Multimap by coding: which coding selects which codeblock id is not verified per software;
+  there is no on-the-fly switching (cruise stalk) patch yet.
+- Launch-control activation is experimental and unverified on a vehicle.
+- End-of-injection, dyno and turbo-fit figures are estimates (one SOI/duration map pair,
+  a fixed Nm-per-mg factor, approximate compressor envelopes).
+- XDF import reads 16-bit tables only. 1.x project files (`.ocproj`) cannot be opened.
+- The single-file executable takes a few seconds to start (it unpacks itself); the ZIP starts faster.
 
-## Known issues and limits
+## Planned for the next update (2.1.0)
 
-- ECU execution and map switching are unverified. Do not infer runnable code from linear decoding. CPU segments are explicit user assumptions; initial origin is zero.
-- DPP/EXT/CP-dependent physical data references and indirect control flow are unresolved. Some C167CS/other C16x forms remain unknown. A robustness sweep does not prove all decoder outputs correct.
-- Assembly supports restricted source fragments rather than whole projects, includes/macros, relocation or insertion. DB/DW accept literal values only. Patches are aligned, bounded overwrites and require a mapped CPU segment.
-- EDC15 support remains feature/layout-specific; complete P/P+/P++ coverage is not claimed. Early checksums/DTCs, compact ORI relocation and some solutions remain unavailable. See SUPPORT.md.
-- Windows x64 requires the complete folder. No clean-VM or physical ECU test is claimed. Native visual inspection hit an app-approval timeout; automated widget and layout checks passed.
-
-See C166-WORKSPACE.md for operation and source/license provenance. New feature releases follow 1.x.0; quick fixes follow 1.0.x (and the corresponding patch series for later feature releases).
+- Validate K-line diagnostics on real cars; add KW1281 fallback.
+- Flash read/write over K-line (with automatic backup and verify).
+- Multimap on-the-fly switching patch (C166) and research into live tuning.
+- Per-software definition packs and more named maps (SVRL rpm limiter, idle, pre-injection).
+- 256 KB EDC15V and EDC15C support.
+- Workbench: several maps side by side; map overlays coloured by log deviation.
+- Import 1.x projects.

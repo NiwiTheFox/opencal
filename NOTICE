@@ -1,4 +1,4 @@
-OpenCal â€” offline binary calibration workbench, version 1.0.0
+OpenCal - offline calibration editor for Bosch EDC15P/V, version 2.0.0
 Copyright (c) 2026 OpenCal contributors.
 
 This combined distribution is licensed under GNU GPL version 3 only.
@@ -42,3 +42,15 @@ Additional 0.9 changes: bounded EGR request-map strategy adapted from GPL VAGEDC
 0.9.1: additional GPL ZedSuite layout/early/fault-path ports; VAGEDCSuite TDI41 arithmetic and independent synthetic C# vectors. Original sources and archive provenance retained in third_party.
 
 1.0.0: GPL C166 tables and Python-port attribution retained in third_party/c166-dis (Hajo Noerenberg, Kristof). OpenCal uses a bounded AST interpreter and corrected decoding. Official AS binaries and corresponding source/build/license information are retained in tools/c166-as and third_party/asl, selecting GPL-3.0-only under their dual-license notices.
+
+Additional 2.0.0 changes (2026-11-25): complete rewrite with a PySide6 (Qt) interface by
+OpenCal contributors (NiwiTheFox; code written with Claude, Anthropic). New map discovery,
+identification, file model, tuning tools, calculators, K-line diagnostics, EEPROM editor and
+PyInstaller packaging are original work. The 1.x engine modules (DTC records, layouts, C166
+disassembler, ZedSuite/WinOLS mappack import) are kept unchanged under opencal/legacy with
+their attributions above. The EDC15P checksum arithmetic in opencal/core/checksum.py is a
+Python reimplementation of the algorithm published with the freeware VAG EDC15P Suite
+(MTX Electronics 2007-2012; GPL VAGEDCSuite sources retained in third_party/vagedcsuite-gpl).
+The Windows executable bundles CPython (PSF license), Qt for Python / PySide6 (LGPL-3.0),
+numpy (BSD), pyqtgraph (MIT), PyOpenGL (BSD) and pyserial (BSD); their licenses are included
+in the PyInstaller bundle. No VAG EDC+ Suite code, definitions or databases are included.

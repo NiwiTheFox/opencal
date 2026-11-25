@@ -3,7 +3,6 @@ __pycache__/
 *.ocproj
 *.audit.json
 *.bin
-!examples/synthetic.bin
 *.ori
 dist/
 exports/
@@ -13,3 +12,7 @@ runtime/
 runtime-licenses/
 BUNDLE-MANIFEST.json
 RUNTIME-MANIFEST.json
+build/
+build_log.txt
+*.spec
+.pytest_cache/

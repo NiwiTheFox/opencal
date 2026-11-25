@@ -1,233 +1,121 @@
-# OpenCal 1.0.0
+# OpenCal 2
 
-**Explore ECU maps, understand your changes, and keep your original file safe.**
+**Free, offline calibration editor for Bosch EDC15P/V diesel ECUs (VAG 1.9 / 2.0 TDI PD).**
+Open a read, find the maps, tune them, check the result and save a flash-ready file with corrected
+checksums. No account, no tokens, no ECU locking.
 
-OpenCal is a free, offline Windows app for exploring ECU binaries, inspecting
-maps, editing calibration values, and keeping track of your changes. Its current
-focus is Bosch EDC15P-family software used in VAG diesel ECUs.
+> OpenCal 2.0 is a **pre-release**. Map identification is heuristic and tuning tools are aids, not
+> guarantees. Always keep your original read, review every change, and verify on the car with logs.
 
-Free to use and open source. No subscription, credits, or account required.
+## Download
 
-> OpenCal is in active development. Map detection and supported solutions are
-> experimental, and an exported file is not automatically ready to flash.
+Get the latest pre-release from the [Releases page](https://github.com/NiwiTheFox/opencal/releases):
 
-## What you can do
+| File | What it is |
+| --- | --- |
+| `OpenCal-2.x.x-win64.exe` | Single self-contained executable. Double-click to run. |
+| `OpenCal-2.x.x-win64.zip` | Portable folder build; starts faster. Extract and run `OpenCal.exe`. |
+| `SHA256SUMS.txt` | Checksums of the downloads. |
 
-- **Explore your BIN:** browse maps by category, search by name or address, and
-  inspect the underlying bytes in the hex editor. Supported codeblocks are
-  grouped using the IDs stored in the firmware.
-- **See the calibration:** switch between numeric tables, 2D curves and a 3D
-  surface. Single-value settings have a simple editor with clear units.
-- **Edit with context:** view original and modified values, choose raw or physical
-  units, edit cells in place, and undo or redo binary changes.
-- **Edit X/Y axes:** change supported ROM breakpoints, review shared storage,
-  and see headers update as you apply, undo, or reopen a project.
-- **Work on a whole table:** preview set/add/percentage changes, interpolate
-  between endpoints, import numeric CSV values, or restore the original map.
-- **Bring your definitions:** import supported ZedSuite/WinOLS JSON mappacks,
-  or use a compatible original-file mappack with layout checks.
-- **Keep a project:** save your BIN, definitions, edits and named snapshots in a
-  self-contained project you can reopen later.
-- **Review before exporting:** compare binaries, check supported checksums,
-  inspect supported DTC records, and export to a separate BIN with an audit file.
-- **Inspect supported solutions:** preview the source-backed launch-control
-  speed-axis change on supported layouts, with undo and original restoration.
+Everything is bundled: Python, Qt, numpy, plotting, serial support and data. Nothing to install.
+Windows may show a SmartScreen warning because the executable is not code-signed:
+choose **More info › Run anyway**.
 
-Your loaded BIN is kept as the original. Edits stay in the project until you
-choose to export, and exports use a new file rather than replacing the input.
+## What it does
 
-## Get started
+**Editor**
+- Opens 512 KB EDC15P/V V4.1 files, reads part number, software, Bosch number and codeblocks.
+- Finds every axis-described table, names the important ones (driver wish, smoke limiter,
+  torque limiter, IQ by MAP, boost target / limit, N75, SOI, injection duration, EGR, start IQ,
+  MAF/MAP linearisation…) and shows them with physical units.
+- Heat-coloured table editor: type or double-click to edit, `+`/`−` steps, set / add / percent /
+  percent-of-original on a selection, interpolate, smooth, copy/paste (Excel-compatible),
+  restore original, edit shared axes. 2D graph with original as dashed lines, 3D surface.
+- Codeblock switcher for multi-map files; *Changed* group lists every edited map.
+- Full undo/redo, change history, compare with the original or any other file and copy maps across.
+- Hex viewer with changes highlighted, C166/C167 disassembly.
 
-### Windows
+**Checks and saving**
+- Checksums for the standard V4.1 layouts (tdi41, tdi41 v2, 2002), verified on load and
+  corrected on save. Arithmetic is tested against independently compiled vectors.
+- *Safe to flash?* pre-flash check: checksums, empty maps in a bank, boost above the MAP-sensor
+  range, boost limit/SVBL below target, smoke limiter effectively off, late end of injection.
+- Projects: every saved version kept next to the untouched original, with notes and ZIP backup.
 
-1. Download the **Windows ZIP** from the release assets.
-2. Extract the whole folder to a location of your choice.
-3. Open **OpenCal.exe** in the extracted folder.
-4. Choose **Open BIN**, then select a map in the left sidebar.
-5. Double-click a table cell to edit it, then press **Enter** to apply or **Esc**
-   to cancel. Use **Undo** to step back.
+**Tuning tools**
+- **Auto Stage 1**: builds a reviewable plan from the file's own calibration (fuel, smoke limit
+  held at a chosen lambda, torque limiter, boost with a MAP-sensor cap, boost limit, SVBL), then applies it as one undo step.
+- **Multimap by coding**: fills empty banks with copies of the calibration and gives each its
+  own codeblock id; tune each bank separately.
+- **DTC disable/enable**: per fault code across every bank, with exact restoration of stock bytes.
+- **EGR off** (race/off-road), optionally with the four EGR fault codes.
+- Duplicate smoke limiter, activate launch control (experimental), SVBL and MAP/MAF switch,
+  MAP-sensor linearisation from a datasheet's two points.
+- **EEPROM editor** (95040 dump): immobiliser on/off, VIN, immobiliser ID, login code, mileage.
 
-The Windows ZIP includes Python and Tcl/Tk. You do not need to install Python,
-pip packages, a compiler, ZedSuite or VAG EDC Suite. It runs offline and does not
-change your system's Python installation. Keep the `runtime` folder beside the EXE.
+**Calculators and analysis**
+- AFR / lambda from boost, power and torque estimate, end of injection (SOI − duration),
+  turbo compressor fit (approximate envelopes).
+- **Virtual dyno**: full-load torque and power estimated from the limiters, compared with the original.
+- **Datalog analysis**: VCDS CSV and generic CSV, logged samples binned onto any map.
 
-The separate **source ZIP** is for contributors and needs Python 3.11+ with Tk.
-Its launcher uses an installed Python when no bundled runtime is present.
+**ECU (K-line)**
+- KKL / FTDI cable: identification, read and clear fault codes, live measuring blocks with CSV logging.
+  A built-in simulator lets you try it without a car.
+- Flash read/write and live tuning are **not** in 2.0. Use your flasher (MPPS, Galletto…) to read and write.
 
-To start from a terminal in this folder:
+## Using it
+
+1. Open your read (**File › Open file** or drop it on the window). The original is never overwritten unless you choose it.
+2. Look at **Overview**: identity, banks, key maps, estimated power and the pre-flash check.
+3. Open maps from the sidebar, edit them, or use a tool from **Tuning**.
+4. **Check** (F9), then **Save as…**. Checksums are corrected automatically.
+
+Keyboard: `Ctrl+O` open · `Ctrl+S` save · `Ctrl+Z`/`Ctrl+Y` undo/redo · `F9` pre-flash check ·
+`Ctrl+H` hex · `Ctrl+I` firmware info.
+
+## Run from source
 
 ```console
-python -m opencal
+python -m pip install -r requirements.txt
+python -m opencal [file.bin]
 ```
 
-### Try it without a real ECU file
-
-Open `examples/synthetic.bin`, then import
-`examples/synthetic.definitions.json` using **Import mappack**. Try changing a
-value, switching views, and undoing your edit. These artificial example files
-let you learn the workflow without using vehicle firmware.
-
-## Find your way around
-
-| Where | What you'll find |
-| --- | --- |
-| Left sidebar | Your project, map categories, and map search |
-| Map editor | Tables, curves, surfaces, and single-value settings |
-| Hexdump | The BIN's bytes, with inspection and editing tools |
-| ECU tools & DTCs | Supported identification, checksum, and fault-code tools |
-| Analysis & compare | Differences between binaries |
-| Versions | Named snapshots of your calibration work |
-| Solutions | Preview supported launch-control and EGR changes |
-| C166 / C167 header button | Mapped disassembly, source editing and guarded assembly previews |
-
-In the map editor, **Physical** shows converted values with units, while **Raw**
-shows the numbers stored in the file. Turn on **Show original** to compare your
-edits with the loaded BIN.
-
-Use **Edit X axis** or **Edit Y axis** to change ROM breakpoints. Axis dialogs
-always show physical values and use a preview before applying. You can also
-double-click an X heading or Y row label. Shared axes update in every map that
-uses those bytes. Older imported projects recover axis storage from their
-retained mappack when possible; otherwise reimport the pack or detect maps again.
-
-**Table actions** includes batch edits, CSV import, original restoration and
-copying values to matching calibration banks. Use Ctrl/Shift to select rows for
-a batch edit. CSV import/export uses numeric physical values in storage order,
-without headers. The divider between the table and graph is draggable.
-
-The **Hexdump** scrollbar and mouse wheel navigate the whole file. Page Up/Down
-move through the viewport; Ctrl+Home/End jump to the start/end. Click a hex or
-ASCII byte to select the address used by **Edit bytes**.
-
-## A simple workflow
-
-1. **Start with a copy** of your original BIN and open it in OpenCal.
-2. **Review the detected maps.** Import a compatible mappack if you have one.
-3. **Select and inspect a map.** Check its name, address, dimensions and units.
-4. **Make a change.** Compare it with the original and use Undo whenever needed.
-5. **Save a project** to keep your work and snapshots together.
-6. **Check and export.** Review supported checksums, then export a new BIN and
-   its accompanying audit report.
-
-**SVRL** is the engine-speed limiter, shown in **rpm**. **SVBL** is the
-single-value boost limiter, shown in **mbar**. They have separate shortcuts so
-you can jump to the setting you intended to inspect.
-
-## Compatibility today
-
-| Area | Current support |
-| --- | --- |
-| BIN inspection, hex editing and comparison | Available independently of ECU-specific detection |
-| Map discovery | Selected standard 512 KiB EDC15 V4.1 layouts; EDC15P is the main focus |
-| JSON mappacks | Supported ZedSuite/WinOLS field layouts, with validation |
-| X/Y axis editing | ROM axes with explicit type, byte order, scaling and bounded storage |
-| Copy table to other banks | Matching definitions, encodings and current axis bytes required |
-| ORI-to-tuned definitions | Requires matching identifiers and compatible bank/axis layouts |
-| Checksum verification and correction | Supported standard V4.1 / 2002 layout only |
-| DTC tools | Selected classic EDC15 record layouts |
-| Launch-control solution | Pattern-checked speed-axis change; vehicle behaviour unverified |
-| EDC16 and other EDC15 layouts | Not supported by the ECU-specific editing tools yet |
-| ECU multimap switching | Research in progress; no verified switching patch |
-
-Detected maps remain **candidates**. Different reference tools can disagree on
-names, scaling or dimensions. A matching checksum confirms the supported checksum
-calculation; it does not establish that a calibration is suitable for an ECU.
-
-Named project snapshots are useful versions of your work. They are separate from
-switchable maps running inside an ECU.
-
-## Built in the open
-
-OpenCal combines original work with attributed ports from the GPL-licensed
-[ZedSuite project](https://github.com/LeZed97/ZedSuite). It uses its own interface
-and does not require either reference application to run.
-
-The source detector has been compared with fresh reference exports on supplied
-EDC15 files. Tests also cover byte preservation, undo/redo, project integrity,
-checksum correction, unsupported inputs and UI workflows. Detailed results and
-known limits are kept in [the release notes](docs/RELEASE-NOTES.md).
-
-Private ECU files, customer binaries, personal projects and reference-app exports
-are not included in public source releases. Public packages start with an empty
-user reference-profile catalog; the source detector and synthetic examples remain
-available.
-
-## Common questions
-
-**Do I need Python, ZedSuite or VAG EDC Suite installed?**  
-No. The Windows download includes its own Python/Tk runtime. Only the source
-download needs a separately installed Python.
-
-**What is a mappack?**  
-It is a set of map definitions: where a map lives in the BIN, its size, and how
-to display its values. Importing one adds definitions; it does not copy another
-file's calibration values into your BIN.
-
-**Why are some maps missing?**  
-Automatic detection currently covers selected layouts. A compatible mappack can
-add definitions the detector has missed. Check its addresses, dimensions and
-scaling before editing.
-
-**Should I save a project or export a BIN?**  
-Save a project when you want to continue working later. Export a BIN when you
-want a separate binary containing your changes. Keep your untouched original.
-
-## Roadmap
-
-- Broader map-discovery coverage and more independent reference comparisons.
-- Richer cell selection, visualisation and calibration review.
-- More checksum providers, enabled only after suitable validation.
-- Continued Windows packaging and UI improvements.
-- Further software-specific research into SVRL and ECU multimap switching.
-
-## Contributing
-
-Bug reports, reproducible steps and small improvements are welcome. Include the
-OpenCal version, what you expected, what happened, and a screenshot when useful.
-Use a synthetic example or a file you have permission to share; do not post
-customer firmware or personal data.
-
-To run the tests:
+Tests (`QT_QPA_PLATFORM=offscreen` for the GUI test):
 
 ```console
-python -m unittest discover -s tests -v
-python -m tests.gui_smoke
+python -m unittest discover -s tests -t . -v
 ```
 
-Tests that need private development files skip when those files are unavailable.
+Set `OPENCAL_PRIVATE_BINS` to a folder of your own 512 KB reads to run the real-file checks;
+vehicle firmware is never committed.
 
-## License
+Build the executable: `python -m pip install pyinstaller` then `python tools/build_exe.py`.
+Pushing a `v*` tag makes GitHub Actions test, build and publish a pre-release.
 
-OpenCal is licensed under **GPL-3.0-only**. You may use, study, modify and
-redistribute it under that license. See [LICENSE](LICENSE) and [NOTICE](NOTICE)
-for the full terms and third-party attribution.
+## Versioning
 
-Windows bundles also retain the Python, Tcl/Tk and component license notices in
-`runtime-licenses`. Runtime versions and packaging changes are recorded in
-`RUNTIME-MANIFEST.json`.
+`2.MINOR.PATCH`: the major stays 2 for this generation. **MINOR** goes up for feature updates,
+**PATCH** for bug fixes. Every release lists its changes, known bugs and what is planned next in
+[CHANGELOG.md](CHANGELOG.md). OpenCal 1.x (Tk interface) lives on the
+[`old` branch](https://github.com/NiwiTheFox/opencal/tree/old).
 
-OpenCal is independent and is not endorsed by ZedSuite, Bosch, or Volkswagen Group.
+## Contributors
 
-## DTC controls
+- [NiwiTheFox](https://github.com/NiwiTheFox): project owner, testing on real cars
+- Claude (Anthropic): OpenCal 2 code, design and tests
 
-Read the DTC records under **ECU tools & DTCs**. Codes are grouped by system. Click a code’s state button to toggle every matching record; expand its arrow to control individual codeblocks. Green means enabled, red means disabled, and Mixed means the records differ. These are monitoring settings in the BIN, not live vehicle faults.
+Contributions are welcome: bug reports with steps, screenshots and the software number
+(do not post customer firmware), or pull requests with tests.
 
-If a tuned file was already disabled when loaded, use **Load stock DTC reference…** with its matching copied original. OpenCal checks identities and record layouts before it can restore exact enabled bytes. Save a project to retain the checked reference.
+## License and credits
 
-See [the update roadmap](docs/ROADMAP.md) for the next releases.
+GPL-3.0-only. See [LICENSE](LICENSE) and [NOTICE](NOTICE). OpenCal includes attributed ports from
+[ZedSuite](https://github.com/LeZed97/ZedSuite) (DTC records and descriptions, mappack conventions)
+and the freeware VAG EDC15P Suite by Dilemma / MTX Electronics checksum algorithm, plus a
+GPL C166 disassembler. Upstream sources and notices are kept in `third_party/`.
 
-## Compare two files
-
-Open **Analysis & compare → Compare BIN** and choose a copied reference BIN. Two windows open: synchronized hex and changed maps grouped by codeblock/category. Maps open side by side: edit your active project on the left, inspect the lighter-grey read-only reference on the right. Both windows share the main editor’s data and undo history, so changes appear immediately. The values tab shows the active value, reference and difference; use its Edit selected button or Enter to edit an active value.
-
-Map comparisons require compatible definitions and supported matching layouts. A stock bank can be compared with matching banks in a tuned file. Raw hex comparisons always use file offsets. No reference bytes are overwritten.
-
-## EGR solution
-
-Under **Solutions**, choose **Preview disable EGR**. The initial supported profile is standard **038906019FJ / 0281010789 / SG 1376**. OpenCal checks every bank before proposing the 850 mg/st request-map target and its four related diagnostic codes. Review the maps, diagnostics and exact bytes, then apply one undoable change. Correct supported checksums and export a separate BIN when ready.
-
-The target strategy is source-backed and tested at byte level; vehicle behaviour remains unverified. Other software is refused. **Restore loaded original** returns to the exact input file, which may already contain modifications.
-
-Coverage is feature-specific. See [EDC15 support](docs/SUPPORT.md) and [source audit](docs/AUDIT-0.9.1.md). C166 tools are bundled in 1.0.0; new feature versions follow 1.x.0 and quick fixes 1.0.x.
-
-The bundled [C166/C167 code workspace](docs/C166-WORKSPACE.md) includes AS and its exact corresponding source/license materials. No Ghidra or IDA installation is required.
+OpenCal is independent and not endorsed by Bosch, Volkswagen Group, ZedPerf or any commercial
+tool vendor. There is no warranty, including no warranty of ECU compatibility. Changing emissions
+equipment (EGR, etc.) is for off-road / competition use only and is illegal on public roads in many
+countries.
