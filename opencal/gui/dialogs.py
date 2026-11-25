@@ -94,7 +94,7 @@ class Stage1Dialog(QtWidgets.QDialog):
         self.lam.setValue(1.20)
         self.bank = QtWidgets.QComboBox()
         for cb in f.populated_banks:
-            self.bank.addItem(f"codeblock {cb.id} ({cb.base >> 16:X}xxxx)", cb.base)
+            self.bank.addItem(cb.label(), cb.base)
         idx = self.bank.findData(f.active_bank)
         self.bank.setCurrentIndex(max(idx, 0))
         form.addRow("Extra fuel at full load", self.gain)
@@ -394,16 +394,21 @@ class CalcDialog(QtWidgets.QDialog):
         form = QtWidgets.QFormLayout(w)
         iq = QtWidgets.QDoubleSpinBox(); iq.setRange(1, 100); iq.setValue(45)
         rpm = QtWidgets.QSpinBox(); rpm.setRange(500, 6000); rpm.setValue(4000)
-        k = QtWidgets.QDoubleSpinBox(); k.setRange(2, 10); k.setValue(5.3); k.setSingleStep(0.1)
+        k = QtWidgets.QDoubleSpinBox(); k.setRange(2, 10); k.setValue(C.EngineSpec().nm_per_mg); k.setSingleStep(0.1)
         out = QtWidgets.QLabel()
         form.addRow("Fuel (mg/st)", iq)
         form.addRow("Engine speed (rpm)", rpm)
-        form.addRow("Nm per mg (1.9 PD ≈ 5.3)", k)
+        form.addRow("Nm per mg (indicated)", k)
         form.addRow(out)
 
         def calc():
-            t = iq.value() * k.value()
-            out.setText(f"≈ {U.fmt(t, 'Nm')} · {U.fmt(C.power_hp(t, rpm.value()), 'hp')}")
+            from ..core import sim
+            e = C.EngineSpec(nm_per_mg=k.value())
+            # plenty of air so fuel, not air, sets it — same brake model as the dyno
+            t = sim.brake_torque(iq.value(), rpm.value(), iq.value() * C.STOICH * 2, e)
+            gross = iq.value() * k.value()
+            out.setText(f"Brake ≈ {U.fmt(t, 'Nm')} · {U.fmt(C.power_hp(t, rpm.value()), 'hp')}"
+                        f"   (indicated {U.fmt(gross, 'Nm')}, same model as the dyno)")
         for s in (iq, rpm, k):
             s.valueChanged.connect(calc)
         calc()
@@ -494,14 +499,14 @@ class DynoDialog(QtWidgets.QDialog):
 
         form = QtWidgets.QHBoxLayout()
         self.bank = QtWidgets.QComboBox()
-        for i, cb in enumerate(f.populated_banks):
-            self.bank.addItem(f"Map {i + 1} · CB {cb.id}", cb.base)
+        for cb in f.populated_banks:
+            self.bank.addItem(cb.label(), cb.base)
         self.bank.setCurrentIndex(max(self.bank.findData(f.active_bank), 0))
         self.temp = self._spin(85, -25, 110, " °C coolant")
         self.gear = QtWidgets.QDoubleSpinBox(); self.gear.setRange(0.5, 4.0); self.gear.setDecimals(3); self.gear.setValue(1.39)
         self.gear.setPrefix("gear ")
         self.mass = self._spin(1350, 700, 2500, " kg")
-        self.k = QtWidgets.QDoubleSpinBox(); self.k.setRange(2, 10); self.k.setValue(5.3); self.k.setPrefix("Nm/mg ")
+        self.k = QtWidgets.QDoubleSpinBox(); self.k.setRange(2, 10); self.k.setValue(C.EngineSpec().nm_per_mg); self.k.setPrefix("Nm/mg ")
         self.r0 = self._spin(1250, 800, 3000, " rpm start")
         self.r1 = self._spin(4500, 2500, 5500, " rpm end")
         self.speed = QtWidgets.QComboBox(); self.speed.addItems(["real time", "2× speed", "8× speed", "instant"])

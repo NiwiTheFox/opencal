@@ -18,7 +18,7 @@ class EngineSpec:
     intercooler_eff: float = 0.60
     ambient_c: float = 20.0
     ambient_mbar: float = 1013.0
-    nm_per_mg: float = 5.3            # PD 1.9 TDI: ~240 Nm at ~45 mg/st
+    nm_per_mg: float = 6.2            # PD 1.9 TDI indicated: calibrated to rated figures
 
 
 def charge_temp_c(boost_mbar_abs: float, e: EngineSpec) -> float:

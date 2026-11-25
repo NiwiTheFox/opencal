@@ -3,6 +3,39 @@
 Versions follow `2.MINOR.PATCH`: MINOR for feature updates, PATCH for bug fixes.
 Every release lists its changes, known bugs and what is planned next.
 
+## 2.1.1 (pre-release)
+
+Bug-fix release for the dyno and codeblock labelling, from feedback testing on a real multimap car.
+
+### Changes
+
+- **Virtual dyno physics corrected.** Brake torque now subtracts friction/pumping (FMEP, rising with
+  rpm) and a high-rpm combustion-efficiency falloff, and is capped by the air actually available
+  (lambda 1). Power now rises, peaks in the mid range (~3800-4000 on a stock ATD) and falls toward
+  the limiter, instead of climbing straight to the rev limit. `nm_per_mg` recalibrated (6.2 indicated).
+- **Removed a bogus boost cap** in the dyno (a leftover `boost_for_iq(200, 1.0)` term); boost is now
+  limited only by the ~2.55 bar MAP-sensor ceiling.
+- **Dyno, overview and the power calculator now use one torque model**, so their numbers agree.
+- **Codeblocks are no longer mislabelled.** The UI invented "Map 1/2/3" from file address, so the
+  base map (codeblock 3, the one the car boots on) showed as "Map 3". Banks are now labelled strictly
+  by their codeblock id (the value the ECU matches to its coding, proven with a C167 emulator run of
+  the ECU's own selection routine), ordered base-first, with the base map marked.
+
+### Known bugs and limits
+
+- The dyno is still a model, not a measurement: a single friction/efficiency curve, simple turbo lag
+  and a fixed vehicle. Use it to compare maps, not as an absolute power figure.
+- Which codeblock the car actually boots on is set by the car's coding, which the file does not carry.
+  OpenCal marks the standard base bank (0x70000) as the base; verify against your coding.
+- Everything carried over from 2.1.0 (EGR/N75 identification gaps on some software, no EDC15V/EDC16,
+  K-line KKL/FTDI only).
+
+### Planned for the next update (2.2.0)
+
+- Multimap switching-patch builder, written clean-room from the Bosch codeblock-selection routine in
+  your own original file, verified in a bundled C167 instruction-set emulator before any bench flash.
+- Better EGR/N75 identification and per-software definition packs.
+
 ## 2.1.0 (pre-release)
 
 Tested against 93 real EDC15P files and three EEPROM dumps.

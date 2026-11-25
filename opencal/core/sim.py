@@ -144,7 +144,7 @@ def simulate(f, bank: int | None = None, p: SimParams | None = None) -> SimResul
 
     def record(phase, pedal, iq, limiter, target, speed):
         air = calcs.air_mg_per_stroke(boost, e)
-        torque = (iq * e.nm_per_mg if phase == "pull" else max(iq * e.nm_per_mg - _friction(rpm), 0.0)) if iq > 0 else 0.0
+        torque = brake_torque(iq, rpm, air, e) if iq > 0 else 0.0
         soi = tb.look(tb.soi, rpm, iq) if tb.soi is not None else None
         dur = tb.look(tb.dur, iq, rpm) if tb.dur is not None else None
         eoi = (soi - dur) if soi is not None and dur is not None else None
@@ -211,7 +211,7 @@ def simulate(f, bank: int | None = None, p: SimParams | None = None) -> SimResul
         tau = p.spool_tau_s * (2000.0 / max(rpm, 900)) ** 1.3
         over = target * (1 + p.overshoot) if boost < target else target
         boost += (over - boost) * DT / tau
-        boost = max(min(boost, calcs.boost_for_iq(200, 1.0, e, 3200)), atm)
+        boost = max(min(boost, MAP_SENSOR_CEILING), atm)   # physical sensor/plumbing ceiling only
         if tb.svbl and boost > tb.svbl and not limp:
             limp = True
             r.events.append(Event(t, "error", f"Boost {boost:.0f} mbar above SVBL {tb.svbl:.0f} mbar → limp mode at {rpm:.0f} rpm"))
@@ -257,6 +257,36 @@ def simulate(f, bank: int | None = None, p: SimParams | None = None) -> SimResul
     return r
 
 
+MAP_SENSOR_CEILING = 2550.0        # mbar absolute: stock 2.5-bar sensor + a little
+
+
 def _friction(rpm: float) -> float:
-    """Friction + pumping torque (Nm) of a 1.9 TDI, rough."""
-    return 12 + 0.004 * rpm + 1.2e-6 * rpm * rpm
+    """Friction + pumping torque (FMEP) of a 1.9 TDI, Nm. Grows with rpm."""
+    return 11.0 + 0.0038 * rpm + 1.3e-6 * rpm * rpm
+
+
+def _comb_eff(rpm: float) -> float:
+    """How much of the fuel's torque the engine actually makes vs rpm.
+
+    Near full it holds flat in the mid range, then falls off at the top as
+    there is less time to burn and fill the cylinder (why a diesel's power
+    peaks around 3800-4000 and then drops rather than climbing to redline).
+    """
+    corner = 2900.0
+    if rpm <= corner:
+        return 1.0
+    # lose ~3% per 1000 rpm above the corner, floored
+    return max(0.74, 1.0 - 0.00003 * (rpm - corner))
+
+
+def brake_torque(iq: float, rpm: float, air: float, e: calcs.EngineSpec) -> float:
+    """Brake torque (Nm) from injected quantity at this rpm.
+
+    Indicated torque is proportional to the fuel actually burned, limited by
+    the air available (a diesel cannot burn past roughly lambda 1), then the
+    pumping/friction torque is subtracted. ``nm_per_mg`` calibrates the
+    indicated side so a stock 1.9 TDI lands on its rated figures.
+    """
+    burnable = min(iq, air / calcs.STOICH)          # can't burn more than the air allows
+    indicated = burnable * e.nm_per_mg * _comb_eff(rpm)
+    return max(indicated - _friction(rpm), 0.0)

@@ -30,6 +30,7 @@ class Codeblock:
     populated: bool
     gearbox: str = ""          # "manual" / "automatic" from the info string
     id_address: int | None = None
+    is_base: bool = False      # the calibration the single-map file / boot uses
 
     @property
     def start(self) -> int:
@@ -41,6 +42,14 @@ class Codeblock:
 
     def contains(self, addr: int) -> bool:
         return self.start <= addr < self.end
+
+    def label(self) -> str:
+        """Stable, truthful name. The codeblock id is what the ECU matches to
+        its coding, so it is the only reliable identifier — never a position."""
+        if self.id is None:
+            return f"Bank 0x{self.base:05X}"
+        base = " · base map" if self.is_base else ""
+        return f"Codeblock {self.id}{base}"
 
 
 @dataclass
@@ -140,6 +149,9 @@ class EcuFile:
         bank_ids = {cb.base: cb.id for cb in self.codeblocks if cb.populated}
         M.identify(self.buf, self.maps, bank_ids)
         self._by_key = {m.key: m for m in self.maps}
+        base = self.active_bank
+        for cb in self.codeblocks:
+            cb.is_base = cb.populated and cb.base == base
 
     # ------------------------------------------------------------ queries --
     def map(self, key: str) -> M.Map | None:
@@ -154,16 +166,26 @@ class EcuFile:
 
     @property
     def populated_banks(self) -> list[Codeblock]:
-        return [cb for cb in self.codeblocks if cb.populated]
+        # Base map first, then by codeblock id — never by file address, which
+        # does not match the order the driver switches maps.
+        banks = [cb for cb in self.codeblocks if cb.populated]
+        return sorted(banks, key=lambda cb: (not cb.is_base, cb.id if cb.id is not None else 999))
 
     @property
     def active_bank(self) -> int:
-        """The bank tools edit by default: the original calibration's bank."""
-        banks = self.populated_banks
+        """The bank tools edit by default and treat as the base/boot map.
+
+        The car's boot map is set by its coding, which the file does not carry,
+        so this is a best guess: the standard single-map EDC15P bank 0x70000
+        when it is populated, otherwise the highest populated bank.
+        """
+        banks = [cb for cb in self.codeblocks if cb.populated]   # raw order, no is_base
         if not banks:
             return 0x70000
-        orig = [cb for cb in banks if bytes(self.original[cb.base + 8:cb.base + 12]) == b"V4.1"]
-        return (orig or banks)[-1].base
+        for cb in banks:
+            if cb.base == 0x70000:
+                return 0x70000
+        return max(cb.base for cb in banks)
 
     def checksum(self) -> cks.ChecksumReport | None:
         if self.checksum_layout:

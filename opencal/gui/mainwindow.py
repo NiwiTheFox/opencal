@@ -368,7 +368,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.bank_box.hide()
             return
         self.bank_box.show()
-        entries = [("All banks", -1)] + [(f"Map {i + 1} · CB {cb.id}", cb.base) for i, cb in enumerate(banks)]
+        entries = [("All banks", -1)] + [(cb.label(), cb.base) for cb in banks]
         for text, base in entries:
             b = QtWidgets.QToolButton()
             b.setText(text)
@@ -1048,11 +1048,12 @@ class OverviewPage(QtWidgets.QScrollArea):
         card("Key maps · active bank", key or [("", "none identified")], 1, 0)
         est = []
         try:
-            from ..core import calcs
-            dy = calcs.virtual_dyno(f, bank)
-            if dy:
-                pk = max(dy, key=lambda p: p.power)
-                pt = max(dy, key=lambda p: p.torque)
+            from ..core import sim
+            r = sim.simulate(f, bank)
+            pull = [s for s in r.samples if s.phase == "pull"]
+            if pull:
+                pk = max(pull, key=lambda s: s.power)
+                pt = max(pull, key=lambda s: s.torque)
                 est = [("Peak power (estimate)", f"≈ {U.fmt(pk.power, 'hp')} @ {pk.rpm:.0f} rpm"),
                        ("Peak torque (estimate)", f"≈ {U.fmt(pt.torque, 'Nm')} @ {pt.rpm:.0f} rpm")]
         except Exception:

@@ -75,3 +75,60 @@ class Simulation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CodeblockLabelling(unittest.TestCase):
+    def test_base_first_and_labels(self):
+        import tempfile, os
+        from opencal.core.ecufile import EcuFile
+        # build a 3-bank multimap from the synthetic single-map file
+        base = synthetic.build()
+        f = EcuFile(bytes(base))
+        from opencal.core import tuning
+        tuning.prepare_multimap(f, {0x50000: 4, 0x60000: 5})
+        banks = f.populated_banks
+        # base map (0x70000, the single-map bank) must come first
+        self.assertTrue(banks[0].is_base)
+        self.assertEqual(banks[0].base, 0x70000)
+        self.assertIn("base map", banks[0].label())
+        # every bank labelled by its codeblock id, never by position
+        ids = {cb.base: cb.id for cb in banks}
+        self.assertEqual(ids, {0x70000: 3, 0x50000: 4, 0x60000: 5})
+        for cb in banks:
+            self.assertIn(f"Codeblock {cb.id}", cb.label())
+        # exactly one base
+        self.assertEqual(sum(cb.is_base for cb in banks), 1)
+
+
+class DynoPhysics(unittest.TestCase):
+    def test_power_peaks_then_falls(self):
+        from opencal.core import sim
+        f = _mk()
+        r = sim.simulate(f)
+        pull = [s for s in r.samples if s.phase == "pull"]
+        self.assertTrue(pull)
+        pk = max(range(len(pull)), key=lambda i: pull[i].power)
+        # peak power is not at the very last sample: the curve falls toward redline
+        self.assertLess(pk, len(pull) - 1)
+        # brake torque falls off at high rpm for the same fuel (friction + combustion)
+        import numpy as np
+        air = 9000.0
+        e = sim.calcs.EngineSpec()
+        self.assertGreater(sim.brake_torque(45, 2000, air, e), sim.brake_torque(45, 4500, air, e))
+        # air-limited: no torque beyond what the air can burn
+        self.assertAlmostEqual(sim.brake_torque(80, 2000, 1000, e),
+                               sim.brake_torque(100, 2000, 1000, e), places=3)
+
+    def test_limiter_edits_change_output(self):
+        from opencal.core import sim
+        f = _mk()
+        p0 = max(s.power for s in sim.simulate(f).samples if s.phase == "pull")
+        dw = f.first("driver_wish")
+        f.write_map(dw, dw.values(f.buf) * 0.5)
+        p1 = max(s.power for s in sim.simulate(f).samples if s.phase == "pull")
+        self.assertLess(p1, p0 * 0.9)
+
+
+def _mk():
+    from opencal.core.ecufile import EcuFile
+    return EcuFile(bytes(synthetic.build()))
